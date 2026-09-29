@@ -64,7 +64,10 @@ function ServerStatus({ state, since, message }: { state: ServerState; since: nu
       dot: 'bg-review animate-pulse',
       text: `Waking up the model on Hugging Face. This can take a minute or two (${secs}s so far). You can type while you wait.`,
     },
-    ready: { dot: 'bg-ok', text: 'Model ready on a free shared GPU (Hugging Face ZeroGPU).' },
+    ready: {
+      dot: 'bg-ok',
+      text: 'Model ready. It runs on a free shared GPU from Hugging Face, and on its CPU once your daily GPU time is used.',
+    },
     error: { dot: 'bg-remove', text: message ?? 'The model server is not available right now. Please try again later.' },
     offline: { dot: 'bg-ink-3', text: 'The live model is not connected on this copy of the site.' },
   }
@@ -264,11 +267,13 @@ function Results(props: {
 
         {s1 && (
           <p className="num text-xs text-ink-3">
-            Toxic question: {s1.ms.toLocaleString('en-US')} ms on the GPU, {s1.totalMs.toLocaleString('en-US')} ms round trip
+            Toxic question: {s1.ms.toLocaleString('en-US')} ms on the {s1.device.toUpperCase()},{' '}
+            {s1.totalMs.toLocaleString('en-US')} ms round trip
             {s2 && (
               <>
                 <br />
-                Other five: {s2.ms.toLocaleString('en-US')} ms on the GPU, {s2.totalMs.toLocaleString('en-US')} ms round trip
+                Other five: {s2.ms.toLocaleString('en-US')} ms on the {s2.device.toUpperCase()},{' '}
+                {s2.totalMs.toLocaleString('en-US')} ms round trip
               </>
             )}
           </p>
@@ -309,7 +314,7 @@ function Bar({ label, p, pending, skipped }: { label: Label; p?: number; pending
 
 function AskOwn({ text }: { text: string }) {
   const [question, setQuestion] = useState('')
-  const [result, setResult] = useState<{ p: number; ms: number; totalMs: number; question: string } | null>(null)
+  const [result, setResult] = useState<{ p: number; ms: number; totalMs: number; device: string; question: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const q = question.trim()
@@ -322,7 +327,7 @@ function AskOwn({ text }: { text: string }) {
     setError(null)
     try {
       const r = await api.ask(text, q)
-      setResult({ p: r.p_yes, ms: r.ms, totalMs: r.totalMs, question: q })
+      setResult({ p: r.p_yes, ms: r.ms, totalMs: r.totalMs, device: r.device, question: q })
     } catch (err) {
       setError(message(err))
     } finally {
@@ -384,7 +389,8 @@ function AskOwn({ text }: { text: string }) {
                   Uncalibrated: custom questions use the model&rsquo;s default confidence
                 </p>
                 <p className="num mt-2 text-xs text-ink-3">
-                  {result.ms.toLocaleString('en-US')} ms on the GPU, {result.totalMs.toLocaleString('en-US')} ms round trip
+                  {result.ms.toLocaleString('en-US')} ms on the {result.device.toUpperCase()},{' '}
+                  {result.totalMs.toLocaleString('en-US')} ms round trip
                 </p>
               </div>
             )}

@@ -6,23 +6,28 @@ import type { Label } from './labels'
 export const SPACE = (import.meta.env.VITE_HF_SPACE ?? '').trim()
 
 export type Decision = 'approve' | 'review' | 'remove'
+/** The Space uses a shared GPU when one is available for this visitor, and its CPU otherwise. */
+export type Device = 'gpu' | 'cpu'
 export interface Stage1 {
   p: { toxic: number }
   decision: Decision
   /** Time the model itself took, measured on the server. */
   ms: number
+  device: Device
   /** Full round trip seen by the browser, including network and GPU queue. */
   totalMs: number
 }
 export interface Stage2 {
   p: Record<Exclude<Label, 'toxic'>, number>
   ms: number
+  device: Device
   totalMs: number
 }
 export interface AskResult {
   p_yes: number
   calibrated: false
   ms: number
+  device: Device
   totalMs: number
 }
 
