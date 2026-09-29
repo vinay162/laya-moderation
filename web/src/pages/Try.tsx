@@ -33,11 +33,11 @@ export default function Try() {
   return (
     <Page>
       <PageHeader title="Try it live">
-        Type a comment and the model scores it on a free CPU server. Then ask it your own yes or no question about the
-        same text.
+        Type a comment and the model scores it on a free shared GPU from Hugging Face. Then ask it your own yes or no
+        question about the same text.
       </PageHeader>
       <ServerStatus state={server.state} since={server.since} message={server.message} />
-      <Analyse onWaking={server.markWaking} onReady={server.markReady} />
+      <Analyse waking={server.state === 'waking' || server.state === 'checking'} />
       <p className="mt-10 flex items-start gap-2 text-sm text-ink-3">
         <ShieldCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
         A demo only, not for real moderation decisions. Your text is scored in memory on the server and is never stored
@@ -59,12 +59,12 @@ function ServerStatus({ state, since, message }: { state: ServerState; since: nu
   const secs = Math.max(0, Math.round((now - since) / 1000))
 
   const view: Record<ServerState, { dot: string; text: string }> = {
-    checking: { dot: 'bg-ink-3 animate-pulse', text: 'Checking the model server…' },
+    checking: { dot: 'bg-ink-3 animate-pulse', text: 'Connecting to the model…' },
     waking: {
       dot: 'bg-review animate-pulse',
-      text: `Waking up the model on a free CPU. This can take a minute or two (${secs}s so far). You can type while you wait.`,
+      text: `Waking up the model on Hugging Face. This can take a minute or two (${secs}s so far). You can type while you wait.`,
     },
-    ready: { dot: 'bg-ok', text: 'Model ready on a free 2 vCPU server.' },
+    ready: { dot: 'bg-ok', text: 'Model ready on a free shared GPU (Hugging Face ZeroGPU).' },
     error: { dot: 'bg-remove', text: message ?? 'The model server is not available right now. Please try again later.' },
     offline: { dot: 'bg-ink-3', text: 'The live model is not connected on this copy of the site.' },
   }
@@ -81,7 +81,9 @@ function ServerStatus({ state, since, message }: { state: ServerState; since: nu
 
 type Phase = 'idle' | 'stage1' | 'stage2' | 'done'
 
-function Analyse({ onWaking, onReady }: { onWaking: () => void; onReady: () => void }) {
+const message = (err: unknown) => (err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+
+function Analyse({ waking }: { waking: boolean }) {
   const [text, setText] = useState('')
   const [scored, setScored] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
@@ -89,30 +91,15 @@ function Analyse({ onWaking, onReady }: { onWaking: () => void; onReady: () => v
   const [s2, setS2] = useState<Stage2 | null>(null)
   const [skipped, setSkipped] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [waking, setWaking] = useState(false)
-  const abort = useRef<AbortController | null>(null)
+  const run = useRef(0)
 
   const busy = phase === 'stage1' || phase === 'stage2'
   const trimmed = text.trim()
 
-  const wake = () => {
-    setWaking(true)
-    onWaking()
-  }
-
-  const runStage2 = async (value: string, signal: AbortSignal) => {
-    setPhase('stage2')
-    const r = await api.stage2(value, wake, signal)
-    setS2(r)
-    setSkipped(false)
-  }
-
   const submit = async (e?: FormEvent) => {
     e?.preventDefault()
     if (!trimmed || busy) return
-    abort.current?.abort()
-    const controller = new AbortController()
-    abort.current = controller
+    const id = ++run.current
     setError(null)
     setS1(null)
     setS2(null)
@@ -121,40 +108,43 @@ function Analyse({ onWaking, onReady }: { onWaking: () => void; onReady: () => v
     let gotStage1 = false
     try {
       setPhase('stage1')
-      const r1 = await api.stage1(trimmed, wake, controller.signal)
+      const r1 = await api.stage1(trimmed)
+      if (id !== run.current) return
       gotStage1 = true
-      setWaking(false)
-      onReady()
       setS1(r1)
       // Two-step check: only ask the other five questions when the comment might be toxic.
-      if (r1.p.toxic >= 0.1) await runStage2(trimmed, controller.signal)
-      else setSkipped(true)
+      if (r1.p.toxic >= 0.1) {
+        setPhase('stage2')
+        const r2 = await api.stage2(trimmed)
+        if (id !== run.current) return
+        setS2(r2)
+      } else {
+        setSkipped(true)
+      }
       setPhase('done')
     } catch (err) {
-      if ((err as Error).name === 'AbortError') return
-      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+      if (id !== run.current) return
+      setError(message(err))
       setPhase(gotStage1 ? 'done' : 'idle')
-    } finally {
-      setWaking(false)
     }
   }
 
   const scoreRest = async () => {
     if (busy || !scored) return
-    const controller = new AbortController()
-    abort.current = controller
+    const id = ++run.current
     setError(null)
+    setPhase('stage2')
     try {
-      await runStage2(scored, controller.signal)
+      const r2 = await api.stage2(scored)
+      if (id !== run.current) return
+      setS2(r2)
+      setSkipped(false)
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') setError(err instanceof ApiError ? err.message : 'Something went wrong.')
+      if (id === run.current) setError(message(err))
     } finally {
-      setPhase('done')
-      setWaking(false)
+      if (id === run.current) setPhase('done')
     }
   }
-
-  useEffect(() => () => abort.current?.abort(), [])
 
   const probs: Partial<Record<Label, number>> = { ...(s1 ? { toxic: s1.p.toxic } : {}), ...(s2?.p ?? {}) }
 
@@ -210,7 +200,7 @@ function Analyse({ onWaking, onReady }: { onWaking: () => void; onReady: () => v
         </div>
       </Section>
 
-      <AskOwn text={scored || trimmed} onWaking={onWaking} onReady={onReady} />
+      <AskOwn text={scored || trimmed} />
     </>
   )
 }
@@ -274,8 +264,13 @@ function Results(props: {
 
         {s1 && (
           <p className="num text-xs text-ink-3">
-            Toxic question: {s1.ms.toLocaleString('en-US')} ms
-            {s2 && <> &middot; other five: {s2.ms.toLocaleString('en-US')} ms</>} &middot; on a free CPU
+            Toxic question: {s1.ms.toLocaleString('en-US')} ms on the GPU, {s1.totalMs.toLocaleString('en-US')} ms round trip
+            {s2 && (
+              <>
+                <br />
+                Other five: {s2.ms.toLocaleString('en-US')} ms on the GPU, {s2.totalMs.toLocaleString('en-US')} ms round trip
+              </>
+            )}
           </p>
         )}
 
@@ -312,9 +307,9 @@ function Bar({ label, p, pending, skipped }: { label: Label; p?: number; pending
 
 /* ---------- Ask your own question ---------- */
 
-function AskOwn({ text, onWaking, onReady }: { text: string; onWaking: () => void; onReady: () => void }) {
+function AskOwn({ text }: { text: string }) {
   const [question, setQuestion] = useState('')
-  const [result, setResult] = useState<{ p: number; ms: number; question: string } | null>(null)
+  const [result, setResult] = useState<{ p: number; ms: number; totalMs: number; question: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const q = question.trim()
@@ -326,11 +321,10 @@ function AskOwn({ text, onWaking, onReady }: { text: string; onWaking: () => voi
     setBusy(true)
     setError(null)
     try {
-      const r = await api.ask(text, q, onWaking)
-      onReady()
-      setResult({ p: r.p_yes, ms: r.ms, question: q })
+      const r = await api.ask(text, q)
+      setResult({ p: r.p_yes, ms: r.ms, totalMs: r.totalMs, question: q })
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+      setError(message(err))
     } finally {
       setBusy(false)
     }
@@ -389,7 +383,9 @@ function AskOwn({ text, onWaking, onReady }: { text: string; onWaking: () => voi
                 <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-review/50 bg-review/10 px-2.5 py-1 text-xs font-medium">
                   Uncalibrated: custom questions use the model&rsquo;s default confidence
                 </p>
-                <p className="num mt-2 text-xs text-ink-3">{result.ms.toLocaleString('en-US')} ms on a free CPU</p>
+                <p className="num mt-2 text-xs text-ink-3">
+                  {result.ms.toLocaleString('en-US')} ms on the GPU, {result.totalMs.toLocaleString('en-US')} ms round trip
+                </p>
               </div>
             )}
             {error && (

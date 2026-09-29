@@ -1,133 +1,117 @@
-import { useEffect, useRef, useState } from 'react'
+import type { Client, SpaceStatus } from '@gradio/client'
+import { useEffect, useState } from 'react'
 import type { Label } from './labels'
 
-export const API_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')
+/** The Hugging Face Space that serves the model, e.g. "Vinay57/laya-moderation-demo". */
+export const SPACE = (import.meta.env.VITE_HF_SPACE ?? '').trim()
 
 export type Decision = 'approve' | 'review' | 'remove'
 export interface Stage1 {
   p: { toxic: number }
   decision: Decision
+  /** Time the model itself took, measured on the server. */
   ms: number
+  /** Full round trip seen by the browser, including network and GPU queue. */
+  totalMs: number
 }
 export interface Stage2 {
   p: Record<Exclude<Label, 'toxic'>, number>
   ms: number
+  totalMs: number
 }
 export interface AskResult {
   p_yes: number
   calibrated: false
   ms: number
+  totalMs: number
 }
 
-export class ApiError extends Error {
-  readonly status?: number
-  constructor(message: string, status?: number) {
-    super(message)
-    this.status = status
-  }
-}
-
-/** Waits that add up to about three minutes, enough for a free Space to wake up. */
-const BACKOFF_MS = [2000, 3000, 5000, 8000, 10000, 15000, 15000, 20000, 20000, 25000, 30000, 30000]
-
-const sleep = (ms: number, signal?: AbortSignal) =>
-  new Promise<void>((resolve, reject) => {
-    const t = setTimeout(resolve, ms)
-    signal?.addEventListener('abort', () => {
-      clearTimeout(t)
-      reject(new DOMException('Aborted', 'AbortError'))
-    })
-  })
-
-/** True for answers that mean "still starting up", which are worth retrying. */
-const isWaking = (status: number) => status === 502 || status === 503 || status === 504
-
-async function request<T>(path: string, init: RequestInit, onWaking?: () => void, signal?: AbortSignal): Promise<T> {
-  if (!API_URL) throw new ApiError('The live model is not connected on this copy of the site.')
-  for (let attempt = 0; ; attempt++) {
-    let res: Response | null = null
-    try {
-      res = await fetch(`${API_URL}${path}`, { ...init, signal })
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') throw e
-      // Network error: a sleeping Space often drops the connection while it boots.
-    }
-    if (res?.ok) return (await res.json()) as T
-    if (res && res.status === 429) throw new ApiError('Too many requests from your connection. Please wait a minute.', 429)
-    if (res && res.status === 422) throw new ApiError('That input is not valid. Check the length limits and try again.', 422)
-    if (res && !isWaking(res.status)) throw new ApiError(`The server answered with an error (${res.status}).`, res.status)
-    if (attempt >= BACKOFF_MS.length) throw new ApiError('The model did not wake up in time. Please try again in a minute.')
-    onWaking?.()
-    await sleep(BACKOFF_MS[attempt], signal)
-  }
-}
-
-const post = <T>(path: string, body: unknown, onWaking?: () => void, signal?: AbortSignal) =>
-  request<T>(
-    path,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-    onWaking,
-    signal,
-  )
-
-export const api = {
-  stage1: (text: string, onWaking?: () => void, signal?: AbortSignal) =>
-    post<Stage1>('/predict/stage1', { text }, onWaking, signal),
-  stage2: (text: string, onWaking?: () => void, signal?: AbortSignal) =>
-    post<Stage2>('/predict/stage2', { text }, onWaking, signal),
-  ask: (text: string, question: string, onWaking?: () => void, signal?: AbortSignal) =>
-    post<AskResult>('/ask', { text, question }, onWaking, signal),
-}
+export class ApiError extends Error {}
 
 export type ServerState = 'offline' | 'checking' | 'waking' | 'ready' | 'error'
 
-/**
- * Pings /health as soon as the page opens, so a sleeping Space starts waking before the visitor
- * clicks anything. Keeps polling until the model reports it is loaded.
- */
-export function useServer() {
-  const [state, setState] = useState<ServerState>(API_URL ? 'checking' : 'offline')
-  const [since] = useState(() => Date.now())
-  const [message, setMessage] = useState<string | null>(null)
-  const alive = useRef(true)
+type Listener = (state: ServerState, message?: string) => void
+const listeners = new Set<Listener>()
+let current: { state: ServerState; message?: string } = { state: SPACE ? 'checking' : 'offline' }
 
+function publish(state: ServerState, message?: string) {
+  current = { state, message }
+  listeners.forEach((l) => l(state, message))
+}
+
+function onStatus(s: SpaceStatus) {
+  if (s.status === 'running') return
+  if (s.status === 'space_error' || s.status === 'paused' || s.status === 'error' || s.status === 'stopped') {
+    publish('error', 'The model server is not available right now. Please try again later.')
+  } else {
+    // sleeping, starting or building: the client keeps waiting until the Space is up.
+    publish('waking')
+  }
+}
+
+let connecting: Promise<Client> | null = null
+
+/**
+ * Connects once and reuses the connection. Connecting also wakes a sleeping Space, so the Try page
+ * calls this as soon as it opens. The client library is loaded only on that page.
+ */
+function client(): Promise<Client> {
+  if (!SPACE) return Promise.reject(new ApiError('The live model is not connected on this copy of the site.'))
+  if (!connecting) {
+    connecting = import('@gradio/client')
+      .then(({ Client }) => Client.connect(SPACE, { status_callback: onStatus }))
+      .then((c) => {
+        publish('ready')
+        return c
+      })
+      .catch((e) => {
+        connecting = null
+        publish('error', 'Could not reach the model server. Please try again in a minute.')
+        throw new ApiError(friendly(e))
+      })
+  }
+  return connecting
+}
+
+function friendly(e: unknown): string {
+  const text = String((e as { message?: string })?.message ?? e)
+  if (/quota/i.test(text)) {
+    return 'You have used today’s free GPU allowance from Hugging Face. It resets within 24 hours.'
+  }
+  if (/characters/i.test(text)) return text
+  return 'The model server could not answer. Please try again.'
+}
+
+async function call<T>(endpoint: string, payload: Record<string, string>): Promise<T & { totalMs: number }> {
+  const c = await client()
+  const t0 = performance.now()
+  try {
+    const res = await c.predict(endpoint, payload)
+    const data = (res.data as unknown[])[0] as T
+    return { ...data, totalMs: Math.round(performance.now() - t0) }
+  } catch (e) {
+    throw new ApiError(friendly(e))
+  }
+}
+
+export const api = {
+  stage1: (text: string) => call<Omit<Stage1, 'totalMs'>>('/stage1', { text }),
+  stage2: (text: string) => call<Omit<Stage2, 'totalMs'>>('/stage2', { text }),
+  ask: (text: string, question: string) => call<Omit<AskResult, 'totalMs'>>('/ask', { text, question }),
+}
+
+/** Starts connecting as soon as the page opens, and tracks whether the Space is awake. */
+export function useServer() {
+  const [state, setState] = useState(current)
+  const [since] = useState(() => Date.now())
   useEffect(() => {
-    if (!API_URL) return
-    alive.current = true
-    const controller = new AbortController()
-    ;(async () => {
-      for (let attempt = 0; alive.current; attempt++) {
-        try {
-          const res = await fetch(`${API_URL}/health`, { signal: controller.signal })
-          if (res.ok) {
-            const h = (await res.json()) as { status: string; model_loaded: boolean; error?: string }
-            if (h.status === 'error') {
-              setState('error')
-              setMessage(h.error ?? 'The model failed to load.')
-              return
-            }
-            if (h.model_loaded) {
-              setState('ready')
-              return
-            }
-          }
-        } catch (e) {
-          if ((e as Error).name === 'AbortError') return
-        }
-        setState('waking')
-        if (attempt >= BACKOFF_MS.length) {
-          setState('error')
-          setMessage('The model server did not respond.')
-          return
-        }
-        await sleep(BACKOFF_MS[attempt], controller.signal).catch(() => undefined)
-      }
-    })()
+    const l: Listener = (s, message) => setState({ state: s, message })
+    listeners.add(l)
+    setState(current)
+    client().catch(() => undefined)
     return () => {
-      alive.current = false
-      controller.abort()
+      listeners.delete(l)
     }
   }, [])
-
-  return { state, since, message, markReady: () => setState('ready'), markWaking: () => setState('waking') }
+  return { state: state.state, message: state.message ?? null, since }
 }

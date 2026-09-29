@@ -236,7 +236,7 @@ const LIMITS = [
   ['Spelling tricks', 'Hate written with swapped letters, added spaces or leetspeak is often missed. Across the three models, 17% to 59% of these HateCheck cases are caught.'],
   ['Label noise ceiling', 'Some Jigsaw labels are simply wrong, like a condolence message marked toxic. No model can score perfectly against noisy labels.'],
   ['English only', 'Trained and tested only on English Wikipedia talk page comments. Other languages and platforms are untested.'],
-  ['Slow on the free demo server', 'The live demo runs on a free CPU. It takes about a second for the toxic question, several seconds for all six, and a minute or two to wake up after being idle.'],
+  ['Free demo server limits', 'The live demo runs on a shared Hugging Face GPU that is lent out per request. It can take a minute or two to wake up after being idle, may queue when busy, and each visitor gets a daily GPU allowance.'],
   ['LLM comparison is partial', 'Gemini’s free tier answered only 22 of 100 requests, so only latency is compared. Nothing here says which one moderates better.'],
   ['Custom questions are uncalibrated', 'Calibration was fitted for the six trained questions only. Answers to your own questions use the model’s default confidence.'],
 ] as const
