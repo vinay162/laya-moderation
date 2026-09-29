@@ -1,0 +1,157 @@
+{
+ "source": "data/stream_log.json (GPU run, fp16, calibrated). Only comments under 150 characters, so none were truncated. The log replaced line breaks with spaces, so texts with double spaces are left out: they were probably scored with line breaks on the GPU.",
+ "labels": [
+  "toxic",
+  "severe_toxic",
+  "obscene",
+  "threat",
+  "insult",
+  "identity_hate"
+ ],
+ "tolerance": 0.02,
+ "cases": [
+  {
+   "text": "Thanks",
+   "p": [
+    0.001,
+    0.0,
+    0.001,
+    0.0,
+    0.002,
+    0.001
+   ]
+  },
+  {
+   "text": "Asshole",
+   "p": [
+    0.891,
+    0.033,
+    0.859,
+    0.001,
+    0.28,
+    0.003
+   ]
+  },
+  {
+   "text": "* I agree",
+   "p": [
+    0.001,
+    0.001,
+    0.001,
+    0.0,
+    0.002,
+    0.001
+   ]
+  },
+  {
+   "text": ":And thank you for your kind words! )",
+   "p": [
+    0.0,
+    0.0,
+    0.001,
+    0.0,
+    0.002,
+    0.001
+   ]
+  },
+  {
+   "text": "you are the best ruzzy99 and we want to be your slaves foever",
+   "p": [
+    0.05,
+    0.002,
+    0.002,
+    0.001,
+    0.006,
+    0.002
+   ]
+  },
+  {
+   "text": "'CHRIS GRASSMAN BONES MEN'",
+   "p": [
+    0.151,
+    0.002,
+    0.003,
+    0.001,
+    0.005,
+    0.003
+   ]
+  },
+  {
+   "text": "::::...You FAIL at reading comprehension.",
+   "p": [
+    0.3,
+    0.001,
+    0.001,
+    0.0,
+    0.018,
+    0.002
+   ]
+  },
+  {
+   "text": "I agree. One with him wearing fake tits would suit best I believe.",
+   "p": [
+    0.448,
+    0.002,
+    0.316,
+    0.0,
+    0.016,
+    0.003
+   ]
+  },
+  {
+   "text": "myspaces is a joke they have very proagative photos and dumb-butts on ther",
+   "p": [
+    0.55,
+    0.001,
+    0.028,
+    0.0,
+    0.041,
+    0.002
+   ]
+  },
+  {
+   "text": "killed evry one in the world",
+   "p": [
+    0.7,
+    0.002,
+    0.002,
+    0.36,
+    0.004,
+    0.002
+   ]
+  },
+  {
+   "text": "and lord stink in stof",
+   "p": [
+    0.8,
+    0.002,
+    0.054,
+    0.001,
+    0.023,
+    0.002
+   ]
+  },
+  {
+   "text": "You guys are losers",
+   "p": [
+    0.9,
+    0.003,
+    0.027,
+    0.0,
+    0.788,
+    0.003
+   ]
+  },
+  {
+   "text": "piece of shit lick my 10 inch poopoo and then suck a urethra off a penis hole fuck boy looking shit head",
+   "p": [
+    0.949,
+    0.676,
+    0.935,
+    0.001,
+    0.907,
+    0.003
+   ]
+  }
+ ]
+}

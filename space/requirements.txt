@@ -1,0 +1,10 @@
+# Installed after the CPU build of torch (see Dockerfile). Versions match the ones the golden tests pass with.
+laya==0.3.21
+transformers==5.17.0
+tokenizers==0.23.2
+safetensors==0.8.0
+huggingface_hub==1.33.0
+numpy==2.5.3
+fastapi==0.142.0
+pydantic==2.13.5
+uvicorn[standard]==0.54.0
