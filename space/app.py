@@ -5,6 +5,8 @@ Space itself is only there so visitors to the Space can try it too. Text is scor
 stored or logged.
 """
 
+import logging
+import threading
 import time
 
 import gradio as gr
@@ -13,15 +15,48 @@ import spaces
 from policy import MAX_QUESTION, MAX_TEXT, clean_question, clean_text, decide
 from scoring import LABELS, Scorer
 
+log = logging.getLogger("laya")
+
 # On ZeroGPU the model is placed on the GPU here, at import time, as the ZeroGPU docs require.
 scorer = Scorer()
 
+# A CPU copy answers when the GPU can't: the visitor's daily ZeroGPU allowance is used up, or no GPU
+# is free. Slower, but nobody gets turned away. Loaded in the background so startup isn't delayed.
+cpu_scorer: Scorer | None = scorer if scorer.device == "cpu" else None
+_cpu_ready = threading.Event()
 
-@spaces.GPU(duration=15)
-def _margins(text: str, instructions: list[str]):
+
+def _load_cpu():
+    global cpu_scorer
+    if cpu_scorer is None:
+        cpu_scorer = Scorer(device="cpu")
+    _cpu_ready.set()
+
+
+threading.Thread(target=_load_cpu, daemon=True).start()
+
+
+# ZeroGPU checks the reserved duration against the visitor's remaining allowance, so keep it short:
+# one comment takes well under a second on the GPU.
+@spaces.GPU(duration=5)
+def _margins_gpu(text: str, instructions: list[str]):
     t0 = time.perf_counter()
     m = scorer.margins(text, instructions)
     return m, round((time.perf_counter() - t0) * 1000)
+
+
+def _margins(text: str, instructions: list[str]):
+    """Raw scores, the model time in ms, and which device answered."""
+    if scorer.device != "cpu":
+        try:
+            m, ms = _margins_gpu(text, instructions)
+            return m, ms, "gpu"
+        except Exception as e:  # quota used up, no GPU free, or a GPU timeout
+            log.info("GPU unavailable, using CPU: %s", type(e).__name__)
+    _cpu_ready.wait()
+    t0 = time.perf_counter()
+    m = cpu_scorer.margins(text, instructions)
+    return m, round((time.perf_counter() - t0) * 1000), "cpu"
 
 
 def _text(text: str) -> str:
@@ -34,25 +69,25 @@ def _text(text: str) -> str:
 def stage1(text: str) -> dict:
     """Calibrated P(toxic) and the routing decision: approve below 0.10, remove at 0.90 or above."""
     text = _text(text)
-    m, ms = _margins(text, scorer.instructions(["toxic"]))
+    m, ms, device = _margins(text, scorer.instructions(["toxic"]))
     p = scorer.platt_probs(["toxic"], m)
-    return {"p": p, "decision": decide(p["toxic"]), "ms": ms}
+    return {"p": p, "decision": decide(p["toxic"]), "ms": ms, "device": device}
 
 
 def stage2(text: str) -> dict:
     """Calibrated probabilities for the other five labels."""
     text = _text(text)
     labels = LABELS[1:]
-    m, ms = _margins(text, scorer.instructions(labels))
-    return {"p": scorer.platt_probs(labels, m), "ms": ms}
+    m, ms, device = _margins(text, scorer.instructions(labels))
+    return {"p": scorer.platt_probs(labels, m), "ms": ms, "device": device}
 
 
 def full(text: str) -> dict:
     """All six calibrated probabilities and the routing decision."""
     text = _text(text)
-    m, ms = _margins(text, scorer.instructions(LABELS))
+    m, ms, device = _margins(text, scorer.instructions(LABELS))
     p = scorer.platt_probs(LABELS, m)
-    return {"p": p, "decision": decide(p["toxic"]), "ms": ms}
+    return {"p": p, "decision": decide(p["toxic"]), "ms": ms, "device": device}
 
 
 def ask(text: str, question: str) -> dict:
@@ -62,8 +97,8 @@ def ask(text: str, question: str) -> dict:
         question = clean_question(question)
     except ValueError as e:
         raise gr.Error(str(e)) from e
-    m, ms = _margins(text, [question])
-    return {"p_yes": scorer.ask_prob(float(m[0])), "calibrated": False, "ms": ms}
+    m, ms, device = _margins(text, [question])
+    return {"p_yes": scorer.ask_prob(float(m[0])), "calibrated": False, "ms": ms, "device": device}
 
 
 with gr.Blocks(title="Laya moderation API") as demo:

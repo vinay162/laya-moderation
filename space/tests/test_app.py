@@ -9,7 +9,7 @@ from policy import decide
 
 def test_stage1():
     r = app.stage1("Thanks")
-    assert set(r) == {"p", "decision", "ms"}
+    assert set(r) == {"p", "decision", "ms", "device"}
     assert set(r["p"]) == {"toxic"}
     assert r["decision"] == "approve"
 
@@ -45,3 +45,25 @@ def test_ask():
 def test_rejects_bad_input(call):
     with pytest.raises(gr.Error):
         call()
+
+
+def test_falls_back_to_cpu_when_gpu_is_unavailable(monkeypatch):
+    """When ZeroGPU refuses (quota used up, no GPU free), the CPU copy answers with the same scores."""
+    expected = app.full("Asshole")["p"]
+    real = app.scorer
+
+    class GpuScorer:
+        device = "cuda"
+
+        def __getattr__(self, name):
+            return getattr(real, name)
+
+    def no_gpu(*_):
+        raise RuntimeError("You have exceeded your GPU quota")
+
+    monkeypatch.setattr(app, "scorer", GpuScorer())
+    monkeypatch.setattr(app, "_margins_gpu", no_gpu)
+    r = app.full("Asshole")
+    assert r["device"] == "cpu"
+    for label, value in expected.items():
+        assert r["p"][label] == pytest.approx(value, abs=1e-6)
