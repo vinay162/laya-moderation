@@ -133,6 +133,58 @@ body {
   box-shadow: inset 0 1px 0 var(--panel-edge), var(--panel-shadow);
 }
 
+/* Range slider: track filled up to the value in the zone colour. */
+.range {
+  appearance: none;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--thumb) var(--fill), var(--sunken) var(--fill));
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--thumb) var(--fill), var(--sunken) var(--fill));
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--thumb);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 150ms ease;
+}
+.range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--thumb);
+}
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.range:focus-visible {
+  outline: none;
+}
+.range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.range:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
