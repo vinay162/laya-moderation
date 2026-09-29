@@ -5,7 +5,6 @@ Space itself is only there so visitors to the Space can try it too. Text is scor
 stored or logged.
 """
 
-import logging
 import threading
 import time
 
@@ -14,8 +13,6 @@ import spaces
 
 from policy import MAX_QUESTION, MAX_TEXT, clean_question, clean_text, decide
 from scoring import LABELS, Scorer
-
-log = logging.getLogger("laya")
 
 # On ZeroGPU the model is placed on the GPU here, at import time, as the ZeroGPU docs require.
 scorer = Scorer()
@@ -52,7 +49,8 @@ def _margins(text: str, instructions: list[str]):
             m, ms = _margins_gpu(text, instructions)
             return m, ms, "gpu"
         except Exception as e:  # quota used up, no GPU free, or a GPU timeout
-            log.info("GPU unavailable, using CPU: %s", type(e).__name__)
+            # Only the reason is logged, never the visitor's text.
+            print(f"GPU unavailable, using CPU: {type(e).__name__}: {str(e)[:200]}", flush=True)
     _cpu_ready.wait()
     t0 = time.perf_counter()
     m = cpu_scorer.margins(text, instructions)
