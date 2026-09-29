@@ -121,7 +121,11 @@ function Simulator({ data }: { data: RoutingPoints }) {
           <p className="font-semibold text-ink">Is 88% removal precision good enough?</p>
           <p className="mt-1 max-w-[80ch]">
             On its own, not for deleting comments outright. At 0.90, about 1 in 8 automatic removals was a comment the
-            human labellers called clean. Some of those are label noise (see where it fails), but a real platform should
+            human labellers called clean. Some of those are label noise (see{' '}
+            <a href="#fails" className="underline underline-offset-2 hover:text-ink">
+              where it fails
+            </a>
+            ), but a real platform should
             treat &ldquo;remove&rdquo; as &ldquo;hide until a person checks&rdquo;, or at least offer an appeal. Moving
             the line up barely helps, because calibrated scores rarely go above 0.93: at 0.95 only 2 of 63,978 comments
             are removed. The dependable part is the other end. 77.8% of comments are approved automatically and only
