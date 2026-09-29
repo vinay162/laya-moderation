@@ -1,0 +1,6 @@
+{
+ "AUC": 0.8052652554761637,
+ "accuracy": 0.5997854077253219,
+ "hateful caught": 0.46078813889972686,
+ "non-hateful wrongly flagged": 0.0944206008583691
+}

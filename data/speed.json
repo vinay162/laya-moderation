@@ -1,0 +1,9 @@
+{
+ "gpu_one_step_cps": 23.560545725148845,
+ "gpu_two_step_cps": 56.6008325063225,
+ "two_step_avg_questions": 2.346087717652943,
+ "two_step_mean_auc": 0.9841447856661314,
+ "one_step_mean_auc": 0.9852848049352118,
+ "cpu_sec_per_comment_6q": 7.268049526214599,
+ "cpu_sec_per_comment_1q": 1.0050702810287475
+}

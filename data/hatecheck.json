@@ -1,0 +1,229 @@
+{
+ "summary": {
+  "AUC (threshold-free)": {
+   "zero_shot": 0.8471,
+   "merged": 0.8053,
+   "detoxify": 0.6939
+  },
+  "accuracy @0.5": {
+   "zero_shot": 0.6746,
+   "merged": 0.6765,
+   "detoxify": 0.5327
+  },
+  "hateful caught (recall)": {
+   "zero_shot": 0.5895,
+   "merged": 0.6231,
+   "detoxify": 0.3976
+  },
+  "non-hateful wrongly flagged": {
+   "zero_shot": 0.1382,
+   "merged": 0.206,
+   "detoxify": 0.17
+  }
+ },
+ "per_functionality": [
+  {
+   "index": "counter_quote_nh",
+   "zero_shot": 0.5434,
+   "merged": 0.4566,
+   "detoxify": 0.6763,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "counter_ref_nh",
+   "zero_shot": 0.8652,
+   "merged": 0.695,
+   "detoxify": 0.7163,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "derog_dehum_h",
+   "zero_shot": 0.7857,
+   "merged": 0.8,
+   "detoxify": 0.6786,
+   "gold": "hateful"
+  },
+  {
+   "index": "derog_impl_h",
+   "zero_shot": 0.3643,
+   "merged": 0.5786,
+   "detoxify": 0.1429,
+   "gold": "hateful"
+  },
+  {
+   "index": "derog_neg_attrib_h",
+   "zero_shot": 0.8429,
+   "merged": 0.8071,
+   "detoxify": 0.6,
+   "gold": "hateful"
+  },
+  {
+   "index": "derog_neg_emote_h",
+   "zero_shot": 0.5786,
+   "merged": 0.7357,
+   "detoxify": 0.3643,
+   "gold": "hateful"
+  },
+  {
+   "index": "ident_neutral_nh",
+   "zero_shot": 1.0,
+   "merged": 0.8651,
+   "detoxify": 1.0,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "ident_pos_nh",
+   "zero_shot": 0.9577,
+   "merged": 0.8942,
+   "detoxify": 0.8413,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "negate_neg_nh",
+   "zero_shot": 0.8571,
+   "merged": 0.609,
+   "detoxify": 0.6466,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "negate_pos_h",
+   "zero_shot": 0.3286,
+   "merged": 0.5571,
+   "detoxify": 0.2857,
+   "gold": "hateful"
+  },
+  {
+   "index": "phrase_opinion_h",
+   "zero_shot": 0.8045,
+   "merged": 0.7669,
+   "detoxify": 0.5865,
+   "gold": "hateful"
+  },
+  {
+   "index": "phrase_question_h",
+   "zero_shot": 0.5214,
+   "merged": 0.6571,
+   "detoxify": 0.2786,
+   "gold": "hateful"
+  },
+  {
+   "index": "profanity_h",
+   "zero_shot": 0.8214,
+   "merged": 0.8143,
+   "detoxify": 0.7571,
+   "gold": "hateful"
+  },
+  {
+   "index": "profanity_nh",
+   "zero_shot": 1.0,
+   "merged": 1.0,
+   "detoxify": 1.0,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "ref_subs_clause_h",
+   "zero_shot": 0.6786,
+   "merged": 0.7214,
+   "detoxify": 0.5071,
+   "gold": "hateful"
+  },
+  {
+   "index": "ref_subs_sent_h",
+   "zero_shot": 0.7744,
+   "merged": 0.7368,
+   "detoxify": 0.5714,
+   "gold": "hateful"
+  },
+  {
+   "index": "slur_h",
+   "zero_shot": 0.7014,
+   "merged": 0.4514,
+   "detoxify": 0.0972,
+   "gold": "hateful"
+  },
+  {
+   "index": "slur_homonym_nh",
+   "zero_shot": 0.8,
+   "merged": 0.8333,
+   "detoxify": 0.9667,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "slur_reclaimed_nh",
+   "zero_shot": 0.716,
+   "merged": 0.8889,
+   "detoxify": 0.716,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "spell_char_del_h",
+   "zero_shot": 0.4929,
+   "merged": 0.4857,
+   "detoxify": 0.2714,
+   "gold": "hateful"
+  },
+  {
+   "index": "spell_char_swap_h",
+   "zero_shot": 0.4286,
+   "merged": 0.5714,
+   "detoxify": 0.2782,
+   "gold": "hateful"
+  },
+  {
+   "index": "spell_leet_h",
+   "zero_shot": 0.3931,
+   "merged": 0.3931,
+   "detoxify": 0.1734,
+   "gold": "hateful"
+  },
+  {
+   "index": "spell_space_add_h",
+   "zero_shot": 0.2139,
+   "merged": 0.3353,
+   "detoxify": 0.2197,
+   "gold": "hateful"
+  },
+  {
+   "index": "spell_space_del_h",
+   "zero_shot": 0.5887,
+   "merged": 0.5532,
+   "detoxify": 0.3972,
+   "gold": "hateful"
+  },
+  {
+   "index": "target_group_nh",
+   "zero_shot": 0.9355,
+   "merged": 1.0,
+   "detoxify": 0.9839,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "target_indiv_nh",
+   "zero_shot": 0.9538,
+   "merged": 1.0,
+   "detoxify": 1.0,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "target_obj_nh",
+   "zero_shot": 1.0,
+   "merged": 1.0,
+   "detoxify": 1.0,
+   "gold": "non-hateful"
+  },
+  {
+   "index": "threat_dir_h",
+   "zero_shot": 0.7368,
+   "merged": 0.6692,
+   "detoxify": 0.4586,
+   "gold": "hateful"
+  },
+  {
+   "index": "threat_norm_h",
+   "zero_shot": 0.7071,
+   "merged": 0.7214,
+   "detoxify": 0.6071,
+   "gold": "hateful"
+  }
+ ]
+}

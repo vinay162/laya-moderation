@@ -1,0 +1,55 @@
+{
+ "questions": {
+  "toxic": {
+   "type": "noul",
+   "instructions": "Is this comment rude, disrespectful or unreasonable?"
+  },
+  "severe_toxic": {
+   "type": "noul",
+   "instructions": "Is this comment extremely hateful, aggressive or disrespectful?"
+  },
+  "obscene": {
+   "type": "noul",
+   "instructions": "Does this comment contain obscene or vulgar language?"
+  },
+  "threat": {
+   "type": "noul",
+   "instructions": "Does this comment threaten to harm someone?"
+  },
+  "insult": {
+   "type": "noul",
+   "instructions": "Does this comment insult a person?"
+  },
+  "identity_hate": {
+   "type": "noul",
+   "instructions": "Does this comment attack someone for their identity (race, religion, gender, sexuality, etc.)?"
+  }
+ },
+ "platt": {
+  "toxic": {
+   "a": 0.8746124663575428,
+   "b": -2.005868519480616
+  },
+  "severe_toxic": {
+   "a": 0.7491019427924143,
+   "b": -2.75889070023838
+  },
+  "obscene": {
+   "a": 0.8511248560582166,
+   "b": -1.9271266829051799
+  },
+  "threat": {
+   "a": 0.7751293080194841,
+   "b": -3.251917189944556
+  },
+  "insult": {
+   "a": 0.8480053273503486,
+   "b": -1.38792564347235
+  },
+  "identity_hate": {
+   "a": 0.7310709757362134,
+   "b": -2.280458927462956
+  }
+ },
+ "max_chars": 1200
+}
