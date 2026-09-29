@@ -1,5 +1,6 @@
 import type { Scoreboard } from '../lib/data'
 import { labelColor } from '../lib/labels'
+import { DrawPath, PopIn, useReveal } from './Marks'
 import { Tip, useTip } from './Tooltip'
 import { scale, useWidth } from './useWidth'
 
@@ -24,6 +25,7 @@ interface JourneyProps {
 export function Journey({ sample, detoxify, tfidf }: JourneyProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const { tip, show, hide } = useTip()
+  const [svgRef, shown] = useReveal<SVGSVGElement>()
   const narrow = width < 480
   const left = 44
   const right = narrow ? 64 : 112
@@ -43,7 +45,7 @@ export function Journey({ sample, detoxify, tfidf }: JourneyProps) {
 
   return (
     <div ref={ref} data-chart className="relative min-w-0">
-      <svg className="block" width={width} height={H} role="img" aria-label="Mean ROC-AUC rises from zero-shot to fine-tuned to merged, while threat drops at the fine-tuned stage and recovers after merging">
+      <svg ref={svgRef} className="block" width={width} height={H} role="img" aria-label="Mean ROC-AUC rises from zero-shot to fine-tuned to merged, while threat drops at the fine-tuned stage and recovers after merging">
         {[0.94, 0.96, 0.98, 1.0].map((t) => (
           <g key={t}>
             <line x1={left} x2={width - right} y1={y(t)} y2={y(t)} stroke="var(--line)" />
@@ -66,25 +68,31 @@ export function Journey({ sample, detoxify, tfidf }: JourneyProps) {
             {s.name}
           </text>
         ))}
-        {lines.map((l) => (
+        {lines.map((l, li) => (
           <g key={l.name}>
-            <path d={path(l.values)} fill="none" stroke={l.color} strokeWidth={2} strokeDasharray={l.dash} />
+            <DrawPath show={shown} delay={li * 0.3} d={path(l.values)} stroke={l.color} strokeWidth={2} strokeDasharray={l.dash} />
             {l.values.map((v, i) => (
               <g key={i} onMouseMove={(e) => show(e, <TipBody stage={STAGES[i].name} name={l.name} value={v} />)} onMouseLeave={hide}>
                 <circle cx={x(i)} cy={y(v)} r={14} fill="transparent" />
-                <circle cx={x(i)} cy={y(v)} r={4.5} fill={l.color} stroke="var(--panel)" strokeWidth={2} />
+                <PopIn show={shown} delay={li * 0.3 + i * 0.35}>
+                  <circle cx={x(i)} cy={y(v)} r={4.5} fill={l.color} stroke="var(--panel)" strokeWidth={2} />
+                </PopIn>
               </g>
             ))}
           </g>
         ))}
-        {lines[0].values.map((v, i) => (
-          <text key={i} x={x(i)} y={y(v) - 10} textAnchor="middle" className="num fill-ink text-[11px]">
-            {v.toFixed(4)}
+        <PopIn show={shown} delay={0.9}>
+          {lines[0].values.map((v, i) => (
+            <text key={i} x={x(i)} y={y(v) - 10} textAnchor="middle" className="num fill-ink text-[11px]">
+              {v.toFixed(4)}
+            </text>
+          ))}
+        </PopIn>
+        <PopIn show={shown} delay={1.2}>
+          <text x={x(1) + 10} y={y(dip) + 4} className="fill-ink-2 text-[11px]">
+            threat fell to <tspan className="num">{dip.toFixed(3)}</tspan>
           </text>
-        ))}
-        <text x={x(1) + 10} y={y(dip) + 4} className="fill-ink-2 text-[11px]">
-          threat fell to <tspan className="num">{dip.toFixed(3)}</tspan>
-        </text>
+        </PopIn>
       </svg>
       <Tip tip={tip} />
     </div>

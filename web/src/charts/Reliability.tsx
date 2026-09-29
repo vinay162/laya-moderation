@@ -1,5 +1,5 @@
 import type { ReliabilityBin } from '../lib/data'
-import { LegendItem, Marker, type Shape } from './Marks'
+import { DrawPath, LegendItem, Marker, PopIn, useReveal, type Shape } from './Marks'
 import { Tip, useTip } from './Tooltip'
 import { scale, useWidth } from './useWidth'
 
@@ -14,10 +14,29 @@ export interface ReliabilitySeries {
 const PAD = { top: 12, right: 16, bottom: 44, left: 48 }
 const TICKS = [0, 0.2, 0.4, 0.6, 0.8, 1]
 
+export function ReliabilityLegend({ series }: { series: Pick<ReliabilitySeries, 'name' | 'shape' | 'color'>[] }) {
+  return (
+    <>
+      {series.map((s) => (
+        <LegendItem key={s.name} shape={s.shape} color={s.color}>
+          {s.name}
+        </LegendItem>
+      ))}
+      <span className="inline-flex items-center gap-2">
+        <svg width="18" height="10" aria-hidden="true">
+          <line x1="1" y1="9" x2="17" y2="1" stroke="var(--line-strong)" strokeWidth="1.5" />
+        </svg>
+        Perfect
+      </span>
+    </>
+  )
+}
+
 /** Predicted probability (x) against how often the prediction was actually right (y). */
 export function Reliability({ series }: { series: ReliabilitySeries[] }) {
   const [ref, width] = useWidth<HTMLDivElement>(420)
   const { tip, show, hide } = useTip()
+  const [svgRef, shown] = useReveal<SVGSVGElement>()
   const size = Math.min(width, 460)
   const height = size - PAD.left + PAD.top + PAD.bottom - PAD.right
   const x = scale(0, 1, PAD.left, size - PAD.right)
@@ -25,21 +44,10 @@ export function Reliability({ series }: { series: ReliabilitySeries[] }) {
 
   return (
     <figure className="m-0 min-w-0">
-      <figcaption className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-2">
-        {series.map((s) => (
-          <LegendItem key={s.name} shape={s.shape} color={s.color}>
-            {s.name}
-          </LegendItem>
-        ))}
-        <span className="inline-flex items-center gap-2">
-          <svg className="block" width="18" height="10" aria-hidden="true">
-            <line x1="1" y1="9" x2="17" y2="1" stroke="var(--line-strong)" strokeWidth="1.5" />
-          </svg>
-          Perfect calibration
-        </span>
-      </figcaption>
       <div ref={ref} data-chart className="relative min-w-0">
-        <svg className="block"
+        <svg
+          ref={svgRef}
+          className="mx-auto block"
           width={size}
           height={height}
           role="img"
@@ -69,16 +77,18 @@ export function Reliability({ series }: { series: ReliabilitySeries[] }) {
           </text>
           <line x1={x(0)} y1={y(0)} x2={x(1)} y2={y(1)} stroke="var(--line-strong)" strokeWidth={1.5} />
 
-          {series.map((s) => (
+          {series.map((s, si) => (
             <g key={s.name}>
-              <path
+              <DrawPath
+                show={shown}
+                delay={si * 0.5}
+                duration={1.4}
                 d={s.bins.map((b, i) => `${i ? 'L' : 'M'}${x(b.mean_pred)},${y(b.observed)}`).join('')}
-                fill="none"
                 stroke={s.color}
                 strokeWidth={2}
                 strokeDasharray={s.dash}
               />
-              {s.bins.map((b) => (
+              {s.bins.map((b, bi) => (
                 <g
                   key={b.bin}
                   onMouseMove={(e) =>
@@ -97,7 +107,9 @@ export function Reliability({ series }: { series: ReliabilitySeries[] }) {
                   onMouseLeave={hide}
                 >
                   <circle cx={x(b.mean_pred)} cy={y(b.observed)} r={12} fill="transparent" />
-                  <Marker shape={s.shape} x={x(b.mean_pred)} y={y(b.observed)} r={4.5} color={s.color} />
+                  <PopIn show={shown} delay={si * 0.5 + bi * 0.1}>
+                    <Marker shape={s.shape} x={x(b.mean_pred)} y={y(b.observed)} r={4.5} color={s.color} />
+                  </PopIn>
                 </g>
               ))}
             </g>

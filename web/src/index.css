@@ -21,6 +21,10 @@
   --ink-2: #4a5360;
   --ink-3: #6b7482;
   --focus: #2a78d6;
+  --grid-dot: rgba(20, 24, 32, 0.07);
+  --panel-shadow: 0 1px 2px rgba(20, 24, 32, 0.06), 0 8px 24px -12px rgba(20, 24, 32, 0.18);
+  --panel-edge: rgba(255, 255, 255, 0.9);
+  --hover: rgba(20, 24, 32, 0.04);
 
   --l-toxic: #eb6834;
   --l-severe_toxic: #4a3aa7;
@@ -41,15 +45,19 @@
 
 [data-theme='dark'] {
   color-scheme: dark;
-  --bg: #12151a;
-  --panel: #181c22;
-  --sunken: #0e1115;
+  --bg: #0f1216;
+  --panel: #171b21;
+  --sunken: #12151a;
   --line: #262c35;
   --line-strong: #39414d;
   --ink: #e9ecf0;
   --ink-2: #aab2bd;
   --ink-3: #7d8795;
   --focus: #6da7ec;
+  --grid-dot: rgba(233, 236, 240, 0.055);
+  --panel-shadow: 0 1px 0 rgba(0, 0, 0, 0.4), 0 18px 40px -20px rgba(0, 0, 0, 0.8);
+  --panel-edge: rgba(255, 255, 255, 0.045);
+  --hover: rgba(233, 236, 240, 0.035);
 
   --l-toxic: #d95926;
   --l-severe_toxic: #9085e9;
@@ -81,6 +89,7 @@
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-focus: var(--focus);
+  --color-hover: var(--hover);
   --color-ok: var(--ok);
   --color-review: var(--review);
   --color-remove: var(--remove);
@@ -98,8 +107,30 @@ html {
 }
 
 body {
-  background: var(--bg);
   min-height: 100vh;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* The six label colours in order: used as the site's signature strip. */
+.spectrum {
+  background: linear-gradient(
+    90deg,
+    var(--l-toxic) 0 16.66%,
+    var(--l-severe_toxic) 0 33.33%,
+    var(--l-obscene) 0 50%,
+    var(--l-threat) 0 66.66%,
+    var(--l-insult) 0 83.33%,
+    var(--l-identity_hate) 0
+  );
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 var(--panel-edge), var(--panel-shadow);
 }
 
 .num {

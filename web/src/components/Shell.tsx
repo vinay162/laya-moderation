@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { usePrefs } from '../lib/prefs'
+import { Menu, X } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Logo, RawTextSwitch, ThemeSwitch } from './Controls'
 
 export interface NavItem {
   id: string
@@ -7,16 +8,15 @@ export interface NavItem {
 }
 
 function useActiveSection(ids: string[]) {
-  const [active, setActive] = useState(ids[0])
+  const [active, setActive] = useState<string | null>(null)
   useEffect(() => {
     const seen = new Map<string, boolean>()
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) seen.set(e.target.id, e.isIntersecting)
-        const first = ids.find((id) => seen.get(id))
-        if (first) setActive(first)
+        setActive(ids.find((id) => seen.get(id)) ?? null)
       },
-      { rootMargin: '-30% 0px -60% 0px' },
+      { rootMargin: '-35% 0px -55% 0px' },
     )
     for (const id of ids) {
       const el = document.getElementById(id)
@@ -32,7 +32,7 @@ export function Shell({ nav, children }: { nav: NavItem[]; children: ReactNode }
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="min-h-screen lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
       <a
         href="#main"
         className="sr-only z-50 rounded bg-panel px-3 py-2 focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
@@ -40,45 +40,31 @@ export function Shell({ nav, children }: { nav: NavItem[]; children: ReactNode }
         Skip to content
       </a>
 
-      {/* Desktop rail */}
-      <aside className="sticky top-0 hidden h-screen flex-col border-r border-line px-5 py-6 lg:flex">
-        <a href="#top" className="font-semibold tracking-tight">
-          Laya moderation
+      <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-bg/80 px-4 py-6 backdrop-blur lg:flex">
+        <a href="#top" className="px-2">
+          <Logo />
         </a>
-        <nav aria-label="Sections" className="mt-8 flex-1">
-          <ul className="grid gap-0.5 text-sm">
-            {nav.map((n) => (
-              <li key={n.id}>
-                <a
-                  href={`#${n.id}`}
-                  aria-current={active === n.id ? 'location' : undefined}
-                  className={`block rounded px-2 py-1.5 ${
-                    active === n.id ? 'bg-sunken font-medium text-ink' : 'text-ink-2 hover:text-ink'
-                  }`}
-                >
-                  {n.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <Switches />
+        <RailNav nav={nav} active={active} />
+        <div className="grid gap-3">
+          <RawTextSwitch />
+          <ThemeSwitch />
+        </div>
       </aside>
 
-      {/* Mobile bar */}
-      <header className="sticky top-0 z-30 border-b border-line bg-bg/95 backdrop-blur lg:hidden">
-        <div className="flex h-14 items-center justify-between px-4">
-          <a href="#top" className="font-semibold tracking-tight">
-            Laya moderation
+      <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur lg:hidden">
+        <div className="flex h-14 items-center justify-between gap-3 px-4">
+          <a href="#top">
+            <Logo />
           </a>
           <button
             type="button"
             aria-expanded={menuOpen}
             aria-controls="mobile-menu"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             onClick={() => setMenuOpen((v) => !v)}
-            className="rounded border border-line px-3 py-1.5 text-sm"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-panel"
           >
-            {menuOpen ? 'Close' : 'Menu'}
+            {menuOpen ? <X className="h-4 w-4" aria-hidden="true" /> : <Menu className="h-4 w-4" aria-hidden="true" />}
           </button>
         </div>
         {menuOpen && (
@@ -87,55 +73,72 @@ export function Shell({ nav, children }: { nav: NavItem[]; children: ReactNode }
               <ul className="grid grid-cols-2 gap-1 text-sm">
                 {nav.map((n) => (
                   <li key={n.id}>
-                    <a href={`#${n.id}`} onClick={() => setMenuOpen(false)} className="block rounded px-2 py-2 text-ink-2">
+                    <a
+                      href={`#${n.id}`}
+                      onClick={() => setMenuOpen(false)}
+                      className={`block rounded-md px-3 py-2 ${active === n.id ? 'bg-hover text-ink' : 'text-ink-2'}`}
+                    >
                       {n.label}
                     </a>
                   </li>
                 ))}
               </ul>
             </nav>
-            <div className="mt-4">
-              <Switches />
+            <div className="mt-4 grid gap-3">
+              <RawTextSwitch />
+              <ThemeSwitch />
             </div>
           </div>
         )}
       </header>
 
-      <main id="main" className="mx-auto w-full max-w-[72rem] px-4 sm:px-8 lg:px-12">
+      <main id="main" className="mx-auto w-full max-w-[74rem] px-4 sm:px-8 lg:px-12">
         {children}
       </main>
     </div>
   )
 }
 
-function Switches() {
-  const { theme, setTheme, showRaw, setShowRaw } = usePrefs()
-  return (
-    <div className="grid gap-3 text-sm">
-      <Toggle checked={showRaw} onChange={setShowRaw} label="Show raw text" hint="Offensive comments are blurred until you turn this on." />
-      <Toggle checked={theme === 'light'} onChange={(v) => setTheme(v ? 'light' : 'dark')} label="Light theme" />
-    </div>
-  )
-}
+function RailNav({ nav, active }: { nav: NavItem[]; active: string | null }) {
+  const list = useRef<HTMLUListElement>(null)
+  const [marker, setMarker] = useState<{ top: number; height: number } | null>(null)
 
-function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
+  useEffect(() => {
+    const el = active ? list.current?.querySelector<HTMLElement>(`[data-id="${active}"]`) : null
+    setMarker(el ? { top: el.offsetTop, height: el.offsetHeight } : null)
+  }, [active])
+
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-3">
-      <span>
-        <span className="text-ink">{label}</span>
-        {hint && <span className="mt-0.5 block text-xs text-ink-3">{hint}</span>}
-      </span>
-      <input
-        type="checkbox"
-        role="switch"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="peer sr-only"
-      />
-      <span
-        aria-hidden="true"
-        className="relative mt-0.5 h-5 w-9 shrink-0 rounded-full border border-line-strong bg-sunken transition-colors peer-checked:bg-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus after:absolute after:top-0.5 after:left-0.5 after:h-3.5 after:w-3.5 after:rounded-full after:bg-ink-3 after:transition-transform peer-checked:after:translate-x-4 peer-checked:after:bg-panel"
-      />
-    </label>
+    <nav aria-label="Sections" className="mt-10 flex-1">
+      <ul ref={list} className="relative grid gap-0.5 text-sm">
+        <li
+          aria-hidden="true"
+          className="pointer-events-none absolute right-0 left-0 rounded-md bg-hover transition-[transform,height,opacity] duration-300 ease-out"
+          style={{
+            transform: `translateY(${marker?.top ?? 0}px)`,
+            height: marker?.height ?? 0,
+            opacity: marker ? 1 : 0,
+          }}
+        >
+          <span className="spectrum absolute top-1.5 bottom-1.5 left-0 w-[3px] rounded-full" />
+        </li>
+        {nav.map((n) => {
+          const isActive = active === n.id
+          return (
+            <li key={n.id} data-id={n.id}>
+              <a
+                href={`#${n.id}`}
+                aria-current={isActive ? 'location' : undefined}
+                className={`relative block rounded-md px-3 py-1.5 transition-colors ${
+                  isActive ? 'font-medium text-ink' : 'text-ink-3 hover:text-ink'
+                }`}
+              >
+                {n.label}
+              </a>
+            </li>
+          )
+        })}
+      </ul>
+    </nav>
   )
 }

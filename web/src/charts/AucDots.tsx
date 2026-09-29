@@ -1,6 +1,6 @@
 import type { AucRow } from '../lib/data'
 import { LABEL_NAME, LABELS, labelColor, type Label } from '../lib/labels'
-import { LegendItem, Marker, type Shape } from './Marks'
+import { LegendItem, SlideMarker, useReveal, type Shape } from './Marks'
 import { Tip, useTip } from './Tooltip'
 import { scale, useWidth } from './useWidth'
 
@@ -18,9 +18,10 @@ const X0 = 0.96
 const X1 = 1.0
 const TICKS = [0.96, 0.97, 0.98, 0.99, 1.0]
 
-export function AucDots({ series }: { series: DotSeries[] }) {
+export function AucDots({ series, legend = true }: { series: DotSeries[]; legend?: boolean }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const { tip, show, hide } = useTip()
+  const [svgRef, shown] = useReveal<SVGSVGElement>()
   const rows: (Label | 'mean')[] = [...LABELS, 'mean']
   const left = width < 480 ? 96 : 120
   const right = 18
@@ -29,7 +30,7 @@ export function AucDots({ series }: { series: DotSeries[] }) {
 
   return (
     <figure className="m-0 min-w-0">
-      <figcaption className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-2">
+      <figcaption className={legend ? 'mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-2' : 'sr-only'}>
         {series.map((s) => (
           <LegendItem key={s.name} shape={s.shape} color={s.color}>
             {s.name}
@@ -37,7 +38,7 @@ export function AucDots({ series }: { series: DotSeries[] }) {
         ))}
       </figcaption>
       <div ref={ref} data-chart className="relative min-w-0">
-        <svg className="block" width={width} height={height} role="img" aria-label="ROC-AUC per label for each model, on a scale from 0.96 to 1.00">
+        <svg ref={svgRef} className="block" width={width} height={height} role="img" aria-label="ROC-AUC per label for each model, on a scale from 0.96 to 1.00">
           {TICKS.map((t) => (
             <g key={t}>
               <line x1={x(t)} x2={x(t)} y1={TOP} y2={height - AXIS} stroke="var(--line)" />
@@ -83,8 +84,17 @@ export function AucDots({ series }: { series: DotSeries[] }) {
                   stroke="var(--line-strong)"
                   strokeWidth={2}
                 />
-                {series.map((s) => (
-                  <Marker key={s.name} shape={s.shape} x={x(s.row[r])} y={cy} color={s.color} />
+                {series.map((s, j) => (
+                  <SlideMarker
+                    key={s.name}
+                    show={shown}
+                    fromX={x(X0)}
+                    delay={0.1 + i * 0.05 + j * 0.08}
+                    shape={s.shape}
+                    x={x(s.row[r])}
+                    y={cy}
+                    color={s.color}
+                  />
                 ))}
               </g>
             )
