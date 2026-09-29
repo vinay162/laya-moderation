@@ -23,7 +23,7 @@ const DECISION: Record<Decision, { name: string; color: string; Icon: typeof Che
 }
 
 export function Stream() {
-  const [ref, near] = useNearView<HTMLDivElement>('800px')
+  const [ref, near] = useNearView<HTMLDivElement>('150px')
   const state = useData('stream_log', near)
   return (
     <Section

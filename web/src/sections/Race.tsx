@@ -14,7 +14,7 @@ const median = (xs: number[]) => {
 }
 
 export function Race() {
-  const [ref, near] = useNearView<HTMLDivElement>()
+  const [ref, near] = useNearView<HTMLDivElement>('150px')
   const state = useData('race_log', near)
   return (
     <Section
