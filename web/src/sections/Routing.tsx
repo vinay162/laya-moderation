@@ -1,4 +1,4 @@
-import { Ban, Check, RotateCcw, UserRound, type LucideIcon } from 'lucide-react'
+import { Ban, Check, RotateCcw, TriangleAlert, UserRound, type LucideIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { RoutingHistogram, ZONE_COLOR, type Zone } from '../charts/RoutingHistogram'
 import { Panel } from '../components/Panel'
@@ -112,6 +112,21 @@ function Simulator({ data }: { data: RoutingPoints }) {
             The two lines trade off against each other. Widen the middle and people review more but fewer mistakes get
             through. At 0.10 and 0.90 the model handles about 82% of comments on its own.
           </Meaning>
+        </div>
+      </div>
+
+      <div className="flex gap-3 rounded-xl border border-review/40 bg-review/[0.07] p-4 sm:p-5">
+        <TriangleAlert aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-review" />
+        <div className="text-sm text-ink-2">
+          <p className="font-semibold text-ink">Is 88% removal precision good enough?</p>
+          <p className="mt-1 max-w-[80ch]">
+            On its own, not for deleting comments outright. At 0.90, about 1 in 8 automatic removals was a comment the
+            human labellers called clean. Some of those are label noise (see where it fails), but a real platform should
+            treat &ldquo;remove&rdquo; as &ldquo;hide until a person checks&rdquo;, or at least offer an appeal. Moving
+            the line up barely helps, because calibrated scores rarely go above 0.93: at 0.95 only 2 of 63,978 comments
+            are removed. The dependable part is the other end. 77.8% of comments are approved automatically and only
+            0.34% of those were actually toxic.
+          </p>
         </div>
       </div>
     </div>
