@@ -1,22 +1,26 @@
-import { Shell, type NavItem } from './components/Shell'
-import { Calibration } from './sections/Calibration'
-import { Hero } from './sections/Hero'
-import { Routing } from './sections/Routing'
-import { Scoreboard } from './sections/Scoreboard'
+import { lazy, Suspense } from 'react'
+import { Route, Routes } from 'react-router'
+import { ScrollManager, Shell } from './components/Shell'
+import Overview from './pages/Overview'
 
-const NAV: NavItem[] = [
-  { id: 'scoreboard', label: 'Scoreboard' },
-  { id: 'calibration', label: 'Calibration' },
-  { id: 'routing', label: 'Routing simulator' },
-]
+// The landing page ships in the main bundle; the others load when first visited.
+const Results = lazy(() => import('./pages/Results'))
+const Try = lazy(() => import('./pages/Try'))
+const How = lazy(() => import('./pages/How'))
 
 export default function App() {
   return (
-    <Shell nav={NAV}>
-      <Hero />
-      <Scoreboard />
-      <Calibration />
-      <Routing />
+    <Shell>
+      <ScrollManager />
+      <Suspense fallback={<div className="min-h-screen" />}>
+        <Routes>
+          <Route path="/" element={<Overview />} />
+          <Route path="/results" element={<Results />} />
+          <Route path="/try" element={<Try />} />
+          <Route path="/how" element={<How />} />
+          <Route path="*" element={<Overview />} />
+        </Routes>
+      </Suspense>
     </Shell>
   )
 }

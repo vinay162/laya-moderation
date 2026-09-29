@@ -1,6 +1,7 @@
 import { ArrowUpRight } from 'lucide-react'
 import { m } from 'motion/react'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import { CountUp } from '../components/CountUp'
 
 export const LINKS = {
@@ -21,7 +22,7 @@ const ease = [0.16, 1, 0.3, 1] as const
 
 export function Hero() {
   return (
-    <header id="top" className="pt-12 pb-16 sm:pt-20 sm:pb-24">
+    <header id="top" className="pt-12 pb-16 sm:pt-16 sm:pb-20">
       <m.div
         aria-hidden="true"
         className="spectrum mb-8 h-1 w-40 origin-left rounded-full"
@@ -54,15 +55,15 @@ export function Hero() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.45 }}
       >
-        <a
-          href="#try"
+        <Link
+          to="/try"
           className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-bg transition-transform hover:-translate-y-px"
         >
           Try it live
-        </a>
-        <a href="#how" className="rounded-full border border-line-strong px-5 py-2.5 text-sm font-medium hover:bg-hover">
+        </Link>
+        <Link to="/how" className="rounded-full border border-line-strong px-5 py-2.5 text-sm font-medium hover:bg-hover">
           How it works
-        </a>
+        </Link>
         <ExternalLink href={LINKS.github}>GitHub</ExternalLink>
         <ExternalLink href={LINKS.model}>Model on Hugging Face</ExternalLink>
       </m.div>

@@ -1,5 +1,6 @@
 import { Menu, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { NavLink, useLocation } from 'react-router'
 import { Logo, RawTextSwitch, ThemeSwitch } from './Controls'
 
 export interface NavItem {
@@ -7,9 +8,118 @@ export interface NavItem {
   label: string
 }
 
-function useActiveSection(ids: string[]) {
+export const PAGES = [
+  { to: '/', label: 'Overview' },
+  { to: '/results', label: 'Results' },
+  { to: '/try', label: 'Try it live' },
+  { to: '/how', label: 'How it was built' },
+] as const
+
+/** Site frame: page tabs across the top, and on wide screens a section menu for the current page. */
+export function Shell({ children }: { children: ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const { pathname } = useLocation()
+  useEffect(() => setMenuOpen(false), [pathname])
+
+  return (
+    <div className="min-h-screen">
+      <a
+        href="#main"
+        className="sr-only z-50 rounded bg-panel px-3 py-2 focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+      >
+        Skip to content
+      </a>
+
+      <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-[90rem] items-center gap-6 px-4 sm:px-6">
+          <NavLink to="/" aria-label="Laya moderation, overview">
+            <Logo />
+          </NavLink>
+          <nav aria-label="Pages" className="hidden flex-1 md:block">
+            <ul className="flex gap-1 text-sm">
+              {PAGES.map((p) => (
+                <li key={p.to}>
+                  <NavLink
+                    to={p.to}
+                    end
+                    className={({ isActive }) =>
+                      `relative block rounded-full px-3 py-1.5 transition-colors ${
+                        isActive ? 'bg-hover font-medium text-ink' : 'text-ink-3 hover:text-ink'
+                      }`
+                    }
+                  >
+                    {p.label}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <div className="ml-auto hidden items-center gap-3 md:flex">
+            <RawTextSwitch compact />
+            <ThemeSwitch />
+          </div>
+          <button
+            type="button"
+            aria-expanded={menuOpen}
+            aria-controls="mobile-menu"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            onClick={() => setMenuOpen((v) => !v)}
+            className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-panel md:hidden"
+          >
+            {menuOpen ? <X className="h-4 w-4" aria-hidden="true" /> : <Menu className="h-4 w-4" aria-hidden="true" />}
+          </button>
+        </div>
+        {menuOpen && (
+          <div id="mobile-menu" className="border-t border-line px-4 pt-3 pb-5 md:hidden">
+            <nav aria-label="Pages">
+              <ul className="grid gap-1 text-sm">
+                {PAGES.map((p) => (
+                  <li key={p.to}>
+                    <NavLink
+                      to={p.to}
+                      end
+                      className={({ isActive }) =>
+                        `block rounded-md px-3 py-2 ${isActive ? 'bg-hover font-medium text-ink' : 'text-ink-2'}`
+                      }
+                    >
+                      {p.label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <div className="mt-4 grid gap-3">
+              <RawTextSwitch />
+              <ThemeSwitch />
+            </div>
+          </div>
+        )}
+      </header>
+
+      <div id="main">{children}</div>
+    </div>
+  )
+}
+
+/** A page body, optionally with a sticky section menu on the left for wide screens. */
+export function Page({ sections, children }: { sections?: NavItem[]; children: ReactNode }) {
+  if (!sections?.length) {
+    return <main className="mx-auto w-full max-w-[74rem] px-4 sm:px-8 lg:px-12">{children}</main>
+  }
+  return (
+    <div className="mx-auto max-w-[90rem] xl:grid xl:grid-cols-[13rem_minmax(0,1fr)]">
+      <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] px-4 pt-16 xl:block">
+        <SectionNav sections={sections} />
+      </aside>
+      <main className="mx-auto w-full max-w-[74rem] min-w-0 px-4 sm:px-8 lg:px-12">{children}</main>
+    </div>
+  )
+}
+
+function useActiveSection(key: string) {
   const [active, setActive] = useState<string | null>(null)
   useEffect(() => {
+    const ids = key.split(',')
     const seen = new Map<string, boolean>()
     const io = new IntersectionObserver(
       (entries) => {
@@ -23,83 +133,12 @@ function useActiveSection(ids: string[]) {
       if (el) io.observe(el)
     }
     return () => io.disconnect()
-  }, [ids])
+  }, [key])
   return active
 }
 
-export function Shell({ nav, children }: { nav: NavItem[]; children: ReactNode }) {
-  const active = useActiveSection(nav.map((n) => n.id))
-  const [menuOpen, setMenuOpen] = useState(false)
-
-  return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
-      <a
-        href="#main"
-        className="sr-only z-50 rounded bg-panel px-3 py-2 focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
-      >
-        Skip to content
-      </a>
-
-      <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-bg/80 px-4 py-6 backdrop-blur lg:flex">
-        <a href="#top" className="px-2">
-          <Logo />
-        </a>
-        <RailNav nav={nav} active={active} />
-        <div className="grid gap-3">
-          <RawTextSwitch />
-          <ThemeSwitch />
-        </div>
-      </aside>
-
-      <header className="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur lg:hidden">
-        <div className="flex h-14 items-center justify-between gap-3 px-4">
-          <a href="#top">
-            <Logo />
-          </a>
-          <button
-            type="button"
-            aria-expanded={menuOpen}
-            aria-controls="mobile-menu"
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            onClick={() => setMenuOpen((v) => !v)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-panel"
-          >
-            {menuOpen ? <X className="h-4 w-4" aria-hidden="true" /> : <Menu className="h-4 w-4" aria-hidden="true" />}
-          </button>
-        </div>
-        {menuOpen && (
-          <div id="mobile-menu" className="border-t border-line px-4 pt-3 pb-5">
-            <nav aria-label="Sections">
-              <ul className="grid grid-cols-2 gap-1 text-sm">
-                {nav.map((n) => (
-                  <li key={n.id}>
-                    <a
-                      href={`#${n.id}`}
-                      onClick={() => setMenuOpen(false)}
-                      className={`block rounded-md px-3 py-2 ${active === n.id ? 'bg-hover text-ink' : 'text-ink-2'}`}
-                    >
-                      {n.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-            <div className="mt-4 grid gap-3">
-              <RawTextSwitch />
-              <ThemeSwitch />
-            </div>
-          </div>
-        )}
-      </header>
-
-      <main id="main" className="mx-auto w-full max-w-[74rem] px-4 sm:px-8 lg:px-12">
-        {children}
-      </main>
-    </div>
-  )
-}
-
-function RailNav({ nav, active }: { nav: NavItem[]; active: string | null }) {
+function SectionNav({ sections }: { sections: NavItem[] }) {
+  const active = useActiveSection(sections.map((s) => s.id).join(','))
   const list = useRef<HTMLUListElement>(null)
   const [marker, setMarker] = useState<{ top: number; height: number } | null>(null)
 
@@ -109,7 +148,8 @@ function RailNav({ nav, active }: { nav: NavItem[]; active: string | null }) {
   }, [active])
 
   return (
-    <nav aria-label="Sections" className="mt-10 flex-1">
+    <nav aria-label="On this page">
+      <p className="mb-2 px-3 text-xs text-ink-3">On this page</p>
       <ul ref={list} className="relative grid gap-0.5 text-sm">
         <li
           aria-hidden="true"
@@ -122,18 +162,18 @@ function RailNav({ nav, active }: { nav: NavItem[]; active: string | null }) {
         >
           <span className="spectrum absolute top-1.5 bottom-1.5 left-0 w-[3px] rounded-full" />
         </li>
-        {nav.map((n) => {
-          const isActive = active === n.id
+        {sections.map((s) => {
+          const isActive = active === s.id
           return (
-            <li key={n.id} data-id={n.id}>
+            <li key={s.id} data-id={s.id}>
               <a
-                href={`#${n.id}`}
+                href={`#${s.id}`}
                 aria-current={isActive ? 'location' : undefined}
                 className={`relative block rounded-md px-3 py-1.5 transition-colors ${
                   isActive ? 'font-medium text-ink' : 'text-ink-3 hover:text-ink'
                 }`}
               >
-                {n.label}
+                {s.label}
               </a>
             </li>
           )
@@ -141,4 +181,25 @@ function RailNav({ nav, active }: { nav: NavItem[]; active: string | null }) {
       </ul>
     </nav>
   )
+}
+
+/** Scrolls to the top on page change, or to the #section in the URL once it has rendered. */
+export function ScrollManager() {
+  const { pathname, hash } = useLocation()
+  useEffect(() => {
+    if (!hash) {
+      window.scrollTo(0, 0)
+      return
+    }
+    let tries = 0
+    const timer = setInterval(() => {
+      const el = document.getElementById(decodeURIComponent(hash.slice(1)))
+      if (el || ++tries > 40) {
+        clearInterval(timer)
+        el?.scrollIntoView()
+      }
+    }, 50)
+    return () => clearInterval(timer)
+  }, [pathname, hash])
+  return null
 }

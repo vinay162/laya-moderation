@@ -53,9 +53,25 @@ export function ThemeSwitch() {
   )
 }
 
-export function RawTextSwitch() {
+export function RawTextSwitch({ compact = false }: { compact?: boolean }) {
   const { showRaw, setShowRaw } = usePrefs()
   const Icon = showRaw ? Eye : EyeOff
+  if (compact) {
+    return (
+      <button
+        type="button"
+        aria-pressed={showRaw}
+        onClick={() => setShowRaw(!showRaw)}
+        title={showRaw ? 'Offensive text is showing. Click to blur it.' : 'Offensive text is blurred. Click to show it.'}
+        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+          showRaw ? 'border-remove/50 bg-remove/10 text-ink' : 'border-line bg-sunken text-ink-3 hover:text-ink-2'
+        }`}
+      >
+        <Icon aria-hidden="true" className={`h-3.5 w-3.5 ${showRaw ? 'text-remove' : ''}`} />
+        {showRaw ? 'Raw text on' : 'Text blurred'}
+      </button>
+    )
+  }
   return (
     <button
       type="button"
