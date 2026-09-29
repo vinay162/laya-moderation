@@ -2,6 +2,7 @@ import { Menu, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router'
 import { Logo, RawTextSwitch, ThemeSwitch } from './Controls'
+import { Footer } from './Footer'
 
 export interface NavItem {
   id: string
@@ -97,6 +98,7 @@ export function Shell({ children }: { children: ReactNode }) {
       </header>
 
       <div id="main">{children}</div>
+      <Footer />
     </div>
   )
 }
@@ -191,15 +193,26 @@ export function ScrollManager() {
       window.scrollTo(0, 0)
       return
     }
-    let tries = 0
+    // Sections above the target load their data lazily and grow, which pushes the target down.
+    // Keep it aligned for a short while, and stop as soon as the visitor scrolls on their own.
+    const id = decodeURIComponent(hash.slice(1))
+    let ticks = 0
+    let stop = false
+    const cancel = () => (stop = true)
+    window.addEventListener('wheel', cancel, { passive: true })
+    window.addEventListener('touchstart', cancel, { passive: true })
+    window.addEventListener('keydown', cancel)
     const timer = setInterval(() => {
-      const el = document.getElementById(decodeURIComponent(hash.slice(1)))
-      if (el || ++tries > 40) {
-        clearInterval(timer)
-        el?.scrollIntoView()
-      }
-    }, 50)
-    return () => clearInterval(timer)
+      const el = document.getElementById(id)
+      if (el && !stop && Math.abs(el.getBoundingClientRect().top - 72) > 4) el.scrollIntoView()
+      if (stop || ++ticks > 50) clearInterval(timer)
+    }, 60)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('wheel', cancel)
+      window.removeEventListener('touchstart', cancel)
+      window.removeEventListener('keydown', cancel)
+    }
   }, [pathname, hash])
   return null
 }
