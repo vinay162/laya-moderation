@@ -5,7 +5,8 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-import app as api
+import server as api
+from policy import decide
 
 
 @pytest.fixture(scope="module")
@@ -31,7 +32,7 @@ def test_health(client):
     "p, expected", [(0.0, "approve"), (0.0999, "approve"), (0.1, "review"), (0.8999, "review"), (0.9, "remove")]
 )
 def test_decision_thresholds(p, expected):
-    assert api.decide(p) == expected
+    assert decide(p) == expected
 
 
 def test_stage1_shape(client):
@@ -49,7 +50,7 @@ def test_stage2_shape(client):
 def test_full_shape(client):
     r = client.post("/predict/full", json={"text": "Asshole"}).json()
     assert len(r["p"]) == 6
-    assert r["decision"] == api.decide(r["p"]["toxic"])
+    assert r["decision"] == decide(r["p"]["toxic"])
 
 
 def test_ask_is_marked_uncalibrated(client):

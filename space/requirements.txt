@@ -1,10 +1,10 @@
-# Installed after the CPU build of torch (see Dockerfile). Versions match the ones the golden tests pass with.
+# Hugging Face installs these on top of Gradio (its version is set in README.md).
+# The same versions pass the golden tests locally.
+torch==2.13.0
 laya==0.3.21
 transformers==5.17.0
 tokenizers==0.23.2
 safetensors==0.8.0
 huggingface_hub==1.33.0
 numpy==2.5.3
-fastapi==0.142.0
-pydantic==2.13.5
-uvicorn[standard]==0.54.0
+spaces==0.51.3

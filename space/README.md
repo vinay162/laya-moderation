@@ -3,39 +3,37 @@ title: Laya Moderation API
 emoji: 🛡️
 colorFrom: gray
 colorTo: blue
-sdk: docker
-app_port: 7860
+sdk: gradio
+sdk_version: 6.29.0
+python_version: "3.12"
+app_file: app.py
 pinned: false
 license: apache-2.0
-short_description: Calibrated toxic comment scoring with a fine-tuned Laya model
+short_description: Calibrated toxic comment scoring with fine-tuned Laya
+models:
+  - Vinay57/laya-jigsaw-moderation
 ---
 
 # Laya moderation API
 
-A small REST API that scores comments with a fine-tuned [Laya](https://huggingface.co/convaiinnovations/laya) model ([Vinay57/laya-jigsaw-moderation](https://huggingface.co/Vinay57/laya-jigsaw-moderation)). It powers the "Try it live" page of the [demo site](https://github.com/vinay162/laya-moderation).
+Scores comments with a fine-tuned [Laya](https://huggingface.co/convaiinnovations/laya) model ([Vinay57/laya-jigsaw-moderation](https://huggingface.co/Vinay57/laya-jigsaw-moderation)). It powers the "Try it live" page of the [demo site](https://github.com/vinay162/laya-moderation) and runs on Hugging Face ZeroGPU, which lends it a GPU only while a request is being scored.
 
-It runs on a free 2 vCPU machine, so the first request after a quiet spell can take a minute or two while the Space wakes up.
+## API
 
-## Endpoints
+| Endpoint | Inputs | Returns |
+|---|---|---|
+| `/stage1` | `text` | calibrated P(toxic), a routing decision, model time in ms |
+| `/stage2` | `text` | calibrated P for the other five labels |
+| `/full` | `text` | all six calibrated probabilities and the decision |
+| `/ask` | `text`, `question` | P(yes) for your own yes/no question (not calibrated) |
 
-| Method | Path | Body | Returns |
-|---|---|---|---|
-| GET | `/health` | | `status`, `model_loaded` |
-| POST | `/predict/stage1` | `{"text"}` | calibrated P(toxic), a routing decision, time taken |
-| POST | `/predict/stage2` | `{"text"}` | calibrated P for the other five labels |
-| POST | `/predict/full` | `{"text"}` | all six calibrated probabilities and the decision |
-| POST | `/ask` | `{"text", "question"}` | P(yes) for your own yes/no question (not calibrated) |
+The decision is `approve` below 0.10, `remove` at 0.90 or above, and `review` in between. Text is 1 to 1,200 characters, questions 3 to 200.
 
-The decision is `approve` below 0.10, `remove` at 0.90 or above, and `review` in between. Text is 1 to 1,200 characters, questions 3 to 200. Each IP gets 20 requests a minute.
+```python
+from gradio_client import Client
 
-Submitted text is scored in memory and never stored or logged.
-
-## Example
-
-```bash
-curl -X POST https://vinay57-laya-moderation-demo.hf.space/predict/full \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Thanks for fixing the references!"}'
+client = Client("Vinay57/laya-moderation-demo")
+print(client.predict("Thanks for fixing the references!", api_name="/full"))
 ```
 
-This is a demo, not a production moderation service.
+Submitted text is scored in memory and never stored or logged. This is a demo, not a production moderation service.

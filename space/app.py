@@ -1,152 +1,97 @@
-"""REST API for the Laya moderation demo. Runs on a free Hugging Face CPU Space."""
+"""Laya moderation API on Hugging Face ZeroGPU.
 
-import os
-import threading
+The demo site calls the four API endpoints below with Gradio's JavaScript client. The small page on the
+Space itself is only there so visitors to the Space can try it too. Text is scored in memory and never
+stored or logged.
+"""
+
 import time
-from collections import defaultdict, deque
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, field_validator
+import gradio as gr
+import spaces
 
+from policy import MAX_QUESTION, MAX_TEXT, clean_question, clean_text, decide
 from scoring import LABELS, Scorer
 
-APPROVE_BELOW = 0.10
-REMOVE_AT = 0.90
-MAX_TEXT = 1200
-RATE_LIMIT = 20  # requests per minute per IP
-ALLOWED_ORIGINS = [
-    o.strip()
-    for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:4173").split(",")
-    if o.strip()
-]
-
-app = FastAPI(title="Laya moderation API", version="1.0.0", docs_url="/docs", redoc_url=None)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
-    max_age=3600,
-)
-
-scorer: Scorer | None = None
-load_error: str | None = None
-served = 0
+# On ZeroGPU the model is placed on the GPU here, at import time, as the ZeroGPU docs require.
+scorer = Scorer()
 
 
-def _load():
-    global scorer, load_error
+@spaces.GPU(duration=15)
+def _margins(text: str, instructions: list[str]):
+    t0 = time.perf_counter()
+    m = scorer.margins(text, instructions)
+    return m, round((time.perf_counter() - t0) * 1000)
+
+
+def _text(text: str) -> str:
     try:
-        scorer = Scorer()
-    except Exception as e:  # reported by /health so failures are visible
-        load_error = f"{type(e).__name__}: {e}"
+        return clean_text(text)
+    except ValueError as e:
+        raise gr.Error(str(e)) from e
 
 
-# Load in the background so /health answers while the model downloads.
-threading.Thread(target=_load, daemon=True).start()
+def stage1(text: str) -> dict:
+    """Calibrated P(toxic) and the routing decision: approve below 0.10, remove at 0.90 or above."""
+    text = _text(text)
+    m, ms = _margins(text, scorer.instructions(["toxic"]))
+    p = scorer.platt_probs(["toxic"], m)
+    return {"p": p, "decision": decide(p["toxic"]), "ms": ms}
 
 
-class TextIn(BaseModel):
-    text: str
-
-    @field_validator("text")
-    @classmethod
-    def check_text(cls, v: str) -> str:
-        v = v.strip()
-        if not 1 <= len(v) <= MAX_TEXT:
-            raise ValueError(f"text must be 1 to {MAX_TEXT} characters")
-        return v
+def stage2(text: str) -> dict:
+    """Calibrated probabilities for the other five labels."""
+    text = _text(text)
+    labels = LABELS[1:]
+    m, ms = _margins(text, scorer.instructions(labels))
+    return {"p": scorer.platt_probs(labels, m), "ms": ms}
 
 
-class AskIn(TextIn):
-    question: str = Field(...)
-
-    @field_validator("question")
-    @classmethod
-    def check_question(cls, v: str) -> str:
-        v = v.strip()
-        if not 3 <= len(v) <= 200:
-            raise ValueError("question must be 3 to 200 characters")
-        return v
+def full(text: str) -> dict:
+    """All six calibrated probabilities and the routing decision."""
+    text = _text(text)
+    m, ms = _margins(text, scorer.instructions(LABELS))
+    p = scorer.platt_probs(LABELS, m)
+    return {"p": p, "decision": decide(p["toxic"]), "ms": ms}
 
 
-_hits: dict[str, deque] = defaultdict(deque)
-_hits_lock = threading.Lock()
+def ask(text: str, question: str) -> dict:
+    """P(yes) for any yes/no question about the text. Not calibrated."""
+    text = _text(text)
+    try:
+        question = clean_question(question)
+    except ValueError as e:
+        raise gr.Error(str(e)) from e
+    m, ms = _margins(text, [question])
+    return {"p_yes": scorer.ask_prob(float(m[0])), "calibrated": False, "ms": ms}
 
 
-def _guard(request: Request) -> Scorer:
-    """Rate limit per client IP, count the request (never its text), and check the model is ready."""
-    global served
-    forwarded = request.headers.get("x-forwarded-for", "")
-    ip = forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
-    now = time.monotonic()
-    with _hits_lock:
-        q = _hits[ip]
-        while q and now - q[0] > 60:
-            q.popleft()
-        if len(q) >= RATE_LIMIT:
-            raise HTTPException(429, "Too many requests. Please wait a minute and try again.")
-        q.append(now)
-        served += 1
-    if scorer is None:
-        raise HTTPException(503, "The model is still loading. Try again in a few seconds.")
-    return scorer
+with gr.Blocks(title="Laya moderation API") as demo:
+    gr.Markdown(
+        "# Laya moderation API\n"
+        "Scores a comment on six toxicity labels with a fine-tuned "
+        "[Laya](https://huggingface.co/convaiinnovations/laya) model. "
+        "The full demo lives on the project site; see [the code on GitHub](https://github.com/vinay162/laya-moderation). "
+        "A demo only, not for real moderation decisions."
+    )
+    with gr.Row():
+        with gr.Column():
+            comment = gr.Textbox(label="Comment", lines=5, max_length=MAX_TEXT)
+            score = gr.Button("Score all six labels", variant="primary")
+            question = gr.Textbox(label="Your own yes/no question (uncalibrated)", max_length=MAX_QUESTION)
+            ask_btn = gr.Button("Ask")
+        with gr.Column():
+            result = gr.JSON(label="Result")
+    # The page's own buttons get separate private names so the public API keeps /full and /ask.
+    score.click(full, comment, result, api_name="ui_full", api_visibility="private")
+    ask_btn.click(ask, [comment, question], result, api_name="ui_ask", api_visibility="private")
 
+    gr.api(stage1, api_name="stage1")
+    gr.api(stage2, api_name="stage2")
+    gr.api(full, api_name="full")
+    gr.api(ask, api_name="ask")
 
-def decide(p_toxic: float) -> str:
-    if p_toxic < APPROVE_BELOW:
-        return "approve"
-    if p_toxic >= REMOVE_AT:
-        return "remove"
-    return "review"
+demo.queue(default_concurrency_limit=1)
 
-
-def _ms(t0: float) -> int:
-    return round((time.perf_counter() - t0) * 1000)
-
-
-@app.get("/")
-def root():
-    return {"name": "Laya moderation API", "docs": "/docs", "health": "/health"}
-
-
-@app.get("/health")
-def health():
-    return {
-        "status": "error" if load_error else "ok",
-        "model_loaded": scorer is not None,
-        "requests_served": served,
-        **({"error": load_error} if load_error else {}),
-    }
-
-
-@app.post("/predict/stage1")
-def stage1(body: TextIn, request: Request):
-    s = _guard(request)
-    t0 = time.perf_counter()
-    p = s.calibrated(body.text, ["toxic"])
-    return {"p": p, "decision": decide(p["toxic"]), "ms": _ms(t0)}
-
-
-@app.post("/predict/stage2")
-def stage2(body: TextIn, request: Request):
-    s = _guard(request)
-    t0 = time.perf_counter()
-    p = s.calibrated(body.text, LABELS[1:])
-    return {"p": p, "ms": _ms(t0)}
-
-
-@app.post("/predict/full")
-def full(body: TextIn, request: Request):
-    s = _guard(request)
-    t0 = time.perf_counter()
-    p = s.calibrated(body.text, LABELS)
-    return {"p": p, "decision": decide(p["toxic"]), "ms": _ms(t0)}
-
-
-@app.post("/ask")
-def ask(body: AskIn, request: Request):
-    s = _guard(request)
-    t0 = time.perf_counter()
-    return {"p_yes": s.ask(body.text, body.question), "calibrated": False, "ms": _ms(t0)}
+if __name__ == "__main__":
+    demo.launch()
