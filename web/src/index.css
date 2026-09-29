@@ -1,0 +1,131 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/schibsted-grotesk';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
+  Tokens. Light is defined first, dark overrides it. The site defaults to dark
+  (set on <html> before first paint in index.html).
+  Label colours were checked for colour-blind separation in both themes.
+*/
+:root {
+  color-scheme: light;
+  --bg: #eef1f4;
+  --panel: #fbfcfd;
+  --sunken: #e4e8ed;
+  --line: #d3d9e0;
+  --line-strong: #b4bdc8;
+  --ink: #141820;
+  --ink-2: #4a5360;
+  --ink-3: #6b7482;
+  --focus: #2a78d6;
+
+  --l-toxic: #eb6834;
+  --l-severe_toxic: #4a3aa7;
+  --l-obscene: #e87ba4;
+  --l-threat: #eda100;
+  --l-insult: #2a78d6;
+  --l-identity_hate: #1baf7a;
+  --l-none: #b9c1cb;
+
+  --m-tfidf: #c3cad3;
+  --m-detoxify: #8791a0;
+  --m-laya: #141820;
+
+  --ok: #0f8a3c;
+  --review: #b36b00;
+  --remove: #c0392b;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #12151a;
+  --panel: #181c22;
+  --sunken: #0e1115;
+  --line: #262c35;
+  --line-strong: #39414d;
+  --ink: #e9ecf0;
+  --ink-2: #aab2bd;
+  --ink-3: #7d8795;
+  --focus: #6da7ec;
+
+  --l-toxic: #d95926;
+  --l-severe_toxic: #9085e9;
+  --l-obscene: #d55181;
+  --l-threat: #c98500;
+  --l-insult: #3987e5;
+  --l-identity_hate: #199e70;
+  --l-none: #3a424e;
+
+  --m-tfidf: #3a424e;
+  --m-detoxify: #6f7a89;
+  --m-laya: #e9ecf0;
+
+  --ok: #3fb56a;
+  --review: #e0a030;
+  --remove: #e5675a;
+}
+
+@theme inline {
+  --font-sans: 'Schibsted Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-focus: var(--focus);
+  --color-ok: var(--ok);
+  --color-review: var(--review);
+  --color-remove: var(--remove);
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+  scroll-padding-top: 4.5rem;
+}
+
+body {
+  background: var(--bg);
+  min-height: 100vh;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--focus) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
