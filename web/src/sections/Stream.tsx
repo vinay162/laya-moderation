@@ -1,4 +1,4 @@
-import { Ban, Check, Pause, Play, RotateCcw, UserRound } from 'lucide-react'
+import { Ban, Check, ChevronLeft, ChevronRight, Pause, Play, RotateCcw, UserRound } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { ReplayBadge } from '../components/Badge'
 import { Panel } from '../components/Panel'
@@ -15,6 +15,9 @@ const SPEEDS = [
   { value: 5, label: '5× fast-forward' },
   { value: 20, label: '20× fast-forward' },
 ] as const
+
+/** How long the inspector keeps the latest flagged comment before showing a newer one. */
+const SWAP_MS = 4000
 
 const DECISION: Record<Decision, { name: string; color: string; Icon: typeof Check }> = {
   approve: { name: 'Approved', color: 'var(--ok)', Icon: Check },
@@ -73,11 +76,15 @@ function Replay({ log }: { log: StreamLog }) {
     [comments.length],
   )
 
-  // Show the most recent flagged comment, but change it at most every 1.5 s so it can be read.
+  const flagged = useMemo(() => comments.flatMap((c, i) => (topLabel(c.p) ? [i] : [])), [comments])
+
+  // Show the most recent flagged comment, but change it at most every few seconds so it can be read,
+  // and not at all while the pointer or keyboard focus is on the inspector.
   const lastSwap = useRef(0)
+  const held = useRef({ pointer: false, focus: false })
   useEffect(() => {
     const now = performance.now()
-    if (now - lastSwap.current < 1500) return
+    if (held.current.pointer || held.current.focus || now - lastSwap.current < SWAP_MS) return
     for (let i = done - 1; i >= Math.max(0, done - 400); i--) {
       if (topLabel(comments[i].p)) {
         lastSwap.current = now
@@ -86,6 +93,12 @@ function Replay({ log }: { log: StreamLog }) {
       }
     }
   }, [done, comments])
+
+  const hold = (key: 'pointer' | 'focus', on: boolean) => {
+    held.current[key] = on
+    // Give the reader a full interval after they move away.
+    if (!on) lastSwap.current = performance.now()
+  }
 
   const reset = () => {
     setDone(0)
@@ -104,6 +117,18 @@ function Replay({ log }: { log: StreamLog }) {
   const shownIdx = picked ?? hovered ?? latestFlagged
   const shownMode = picked !== null ? 'Selected' : hovered !== null ? 'Hovered' : 'Latest flagged'
   const finished = done >= comments.length
+
+  // Step through flagged comments that have already been processed.
+  let prevFlagged: number | null = null
+  let nextFlagged: number | null = null
+  for (const i of flagged) {
+    if (i >= done) break
+    if (shownIdx === null || i < shownIdx) prevFlagged = i
+    else if (i > shownIdx) {
+      nextFlagged = i
+      break
+    }
+  }
 
   return (
     <div ref={wrap} className="grid gap-6">
@@ -137,7 +162,21 @@ function Replay({ log }: { log: StreamLog }) {
         <Counters done={done} total={comments.length} rate={rate} speed={speed} totals={totals} />
       </Panel>
 
-      <Inspector comment={shownIdx !== null ? comments[shownIdx] : null} index={shownIdx} mode={shownMode} onClear={picked !== null ? () => setPicked(null) : undefined} />
+      <div
+        onPointerEnter={() => hold('pointer', true)}
+        onPointerLeave={() => hold('pointer', false)}
+        onFocus={() => hold('focus', true)}
+        onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && hold('focus', false)}
+      >
+        <Inspector
+          comment={shownIdx !== null ? comments[shownIdx] : null}
+          index={shownIdx}
+          mode={shownMode}
+          onClear={picked !== null ? () => setPicked(null) : undefined}
+          onPrev={prevFlagged !== null ? () => setPicked(prevFlagged) : undefined}
+          onNext={nextFlagged !== null ? () => setPicked(nextFlagged) : undefined}
+        />
+      </div>
     </div>
   )
 }
@@ -465,11 +504,15 @@ function Inspector({
   index,
   mode,
   onClear,
+  onPrev,
+  onNext,
 }: {
   comment: StreamComment | null
   index: number | null
   mode: string
   onClear?: () => void
+  onPrev?: () => void
+  onNext?: () => void
 }) {
   if (!comment || index === null) {
     return (
@@ -478,6 +521,7 @@ function Inspector({
       </Panel>
     )
   }
+  const step = 'inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs hover:bg-hover disabled:opacity-40 disabled:hover:bg-transparent'
   const d = decide(comment.p[0])
   const { name, color, Icon } = DECISION[d]
   return (
@@ -489,6 +533,16 @@ function Inspector({
           <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-white" style={{ background: color }}>
             <Icon aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
             {name}
+          </span>
+          <span className="inline-flex gap-1">
+            <button type="button" onClick={onPrev} disabled={!onPrev} className={step}>
+              <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
+              Previous flagged
+            </button>
+            <button type="button" onClick={onNext} disabled={!onNext} className={step}>
+              Next flagged
+              <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
           </span>
           {onClear && (
             <button type="button" onClick={onClear} className="rounded-full border border-line px-2.5 py-1 text-xs hover:bg-hover">
@@ -543,6 +597,12 @@ function Inspector({
           })}
         </tbody>
       </table>
+      {mode === 'Latest flagged' && (
+        <p className="text-xs text-ink-3 md:col-span-2">
+          While the replay runs, this shows a newer flagged comment every 4 seconds and holds while your pointer is here.
+          Click any square, use Previous and Next, or press Pause to keep one on screen.
+        </p>
+      )}
     </Panel>
   )
 }
