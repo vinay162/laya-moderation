@@ -10,10 +10,10 @@ export const LINKS = {
 }
 
 // Headline numbers. Sources: scoreboard.json (mean AUC), routing_points.json at 0.10 / 0.90
-// (77.79% approved + 4.07% removed), speed.json (56.6 comments/sec, two-step check).
+// (77.79% approved + 4.07% removed, 0.34% of approved were toxic), speed.json (56.6 comments/sec, two-step check).
 const STATS: { value: number; format: (v: number) => string; label: string; note: string }[] = [
   { value: 0.9853, format: (v) => v.toFixed(3), label: 'mean ROC-AUC', note: 'Detoxify scores 0.986' },
-  { value: 82, format: (v) => `~${Math.round(v)}%`, label: 'of decisions automated', note: 'the rest go to a person' },
+  { value: 82, format: (v) => `~${Math.round(v)}%`, label: 'decided without a person', note: '0.34% of auto-approvals were toxic' },
   { value: 56.6, format: (v) => `${Math.floor(v)}/sec`, label: 'on one free T4 GPU', note: 'with the two-step check' },
   { value: 0, format: () => '$0', label: 'per request', note: 'self-hosted, trained on free GPUs' },
 ]

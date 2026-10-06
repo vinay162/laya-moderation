@@ -27,7 +27,7 @@ const GLANCE = [
     title: 'Handled automatically',
     value: '81.86%',
     compare: 'at the 0.10 / 0.90 lines',
-    text: 'The rest go to a person. Try moving the lines yourself in the routing simulator.',
+    text: 'The rest go to a person. Of the comments approved automatically, 0.34% were toxic. Move the lines yourself in the routing simulator.',
   },
 ]
 
