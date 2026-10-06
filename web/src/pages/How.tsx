@@ -78,7 +78,7 @@ const STEPS: Step[] = [
       <>
         My first guess was that rounding the probabilities was blurring the ranking. I re-scored without rounding and
         the drop stayed, so that idea was wrong. The real cause was two mislabelled or debatable &ldquo;threat&rdquo;
-        comments, such as <Redacted text="&ldquo;shov it up ur ass&rdquo;" offensive />. With only 34 threats in the
+        comments, such as <Redacted text="&ldquo;shov it up ur ass&rdquo;" offensive variant="inline" />. With only 34 threats in the
         sample, two examples moved the score a lot.
       </>
     ),
