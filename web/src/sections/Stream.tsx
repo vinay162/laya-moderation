@@ -295,7 +295,9 @@ function TileCanvas({ comments, playing, speed, rate, done, onProgress, selected
     let last = performance.now()
     let lastReport = 0
     const frame = (now: number) => {
-      const dt = Math.min(0.1, (now - last) / 1000)
+      // A frame timestamp can be slightly earlier than the performance.now() taken when the loop started,
+      // so clamp at 0: a negative step would push the count to -1.
+      const dt = Math.max(0, Math.min(0.1, (now - last) / 1000))
       last = now
       position.current = Math.min(n, position.current + dt * rate * speed)
       const target = Math.floor(position.current)
