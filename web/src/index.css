@@ -201,6 +201,19 @@ body {
   background: color-mix(in srgb, var(--focus) 35%, transparent);
 }
 
+/* Stream inspector: time left before the live view moves to a newer comment (4 s, matches SWAP_MS). */
+.inspector-countdown {
+  animation: inspector-countdown 4s linear forwards;
+}
+@keyframes inspector-countdown {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

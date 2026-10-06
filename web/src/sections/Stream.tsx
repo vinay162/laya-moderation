@@ -1,4 +1,4 @@
-import { Ban, Check, ChevronLeft, ChevronRight, Pause, Play, RotateCcw, UserRound } from 'lucide-react'
+import { Ban, Check, ChevronLeft, ChevronRight, Pause, Pin, Play, Radio, RotateCcw, UserRound } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { ReplayBadge } from '../components/Badge'
 import { Panel } from '../components/Panel'
@@ -48,6 +48,7 @@ function Replay({ log }: { log: StreamLog }) {
   const { comments } = log
   const rate = log.comments_per_sec
   const totals = useMemo(() => streamTotals(comments), [comments])
+  const flagged = useMemo(() => comments.flatMap((c, i) => (topLabel(c.p) ? [i] : [])), [comments])
   const { reducedMotion } = usePrefs()
 
   const [playing, setPlaying] = useState(false)
@@ -56,6 +57,8 @@ function Replay({ log }: { log: StreamLog }) {
   const [picked, setPicked] = useState<number | null>(null)
   const [hovered, setHovered] = useState<number | null>(null)
   const [latestFlagged, setLatestFlagged] = useState<number | null>(null)
+  const [swapKey, setSwapKey] = useState(0)
+  const doneRef = useRef(0)
   const userPaused = useRef(reducedMotion)
   const wrap = useRef<HTMLDivElement>(null)
 
@@ -70,40 +73,30 @@ function Replay({ log }: { log: StreamLog }) {
 
   const onProgress = useCallback(
     (n: number) => {
+      doneRef.current = n
       setDone(n)
       if (n >= comments.length) setPlaying(false)
     },
     [comments.length],
   )
 
-  const flagged = useMemo(() => comments.flatMap((c, i) => (topLabel(c.p) ? [i] : [])), [comments])
-
-  // Show the most recent flagged comment, but change it at most every few seconds so it can be read,
-  // and not at all while the pointer or keyboard focus is on the inspector.
-  const lastSwap = useRef(0)
-  const held = useRef({ pointer: false, focus: false })
+  // While playing, move the inspector to the newest flagged comment every SWAP_MS.
+  // A manual "back to live" bumps swapKey, which restarts the timer and the countdown bar together.
   useEffect(() => {
-    const now = performance.now()
-    if (held.current.pointer || held.current.focus || now - lastSwap.current < SWAP_MS) return
-    for (let i = done - 1; i >= Math.max(0, done - 400); i--) {
-      if (topLabel(comments[i].p)) {
-        lastSwap.current = now
-        setLatestFlagged(i)
-        break
-      }
-    }
-  }, [done, comments])
-
-  const hold = (key: 'pointer' | 'focus', on: boolean) => {
-    held.current[key] = on
-    // Give the reader a full interval after they move away.
-    if (!on) lastSwap.current = performance.now()
-  }
+    if (!playing) return
+    const t = setTimeout(() => {
+      setLatestFlagged(lastFlaggedBefore(flagged, doneRef.current))
+      setSwapKey((k) => k + 1)
+    }, SWAP_MS)
+    return () => clearTimeout(t)
+  }, [playing, swapKey, flagged])
 
   const reset = () => {
+    doneRef.current = 0
     setDone(0)
     setPicked(null)
     setLatestFlagged(null)
+    setSwapKey((k) => k + 1)
     userPaused.current = false
     setPlaying(true)
   }
@@ -114,8 +107,16 @@ function Replay({ log }: { log: StreamLog }) {
     setPlaying(!playing)
   }
 
-  const shownIdx = picked ?? hovered ?? latestFlagged
-  const shownMode = picked !== null ? 'Selected' : hovered !== null ? 'Hovered' : 'Latest flagged'
+  const backToLive = () => {
+    setPicked(null)
+    setLatestFlagged(lastFlaggedBefore(flagged, done))
+    setSwapKey((k) => k + 1)
+  }
+
+  // Until the first swap, show the first flagged comment once it has been processed.
+  const liveIdx = latestFlagged ?? (flagged[0] < done ? flagged[0] : null)
+  const shownIdx = picked ?? hovered ?? liveIdx
+  const mode: InspectorMode = picked !== null ? 'pinned' : hovered !== null ? 'hover' : 'live'
   const finished = done >= comments.length
 
   // Step through flagged comments that have already been processed.
@@ -131,13 +132,13 @@ function Replay({ log }: { log: StreamLog }) {
   }
 
   return (
-    <div ref={wrap} className="grid gap-6">
+    <div ref={wrap}>
       <Panel
         title="Moderation stream"
         source={`Replayed at the measured throughput of the real run (${rate.toFixed(1)} comments/sec, ${log.questions_per_comment} questions each)`}
-        bodyClassName="grid [&>*]:min-w-0 gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_20rem]"
+        bodyClassName="grid [&>*]:min-w-0 gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_1fr]"
       >
-        <div className="grid content-start gap-4">
+        <div className="grid content-start gap-4 lg:col-start-1 lg:row-start-1">
           <TileCanvas
             comments={comments}
             playing={playing}
@@ -159,26 +160,27 @@ function Replay({ log }: { log: StreamLog }) {
             progress={done / comments.length}
           />
         </div>
-        <Counters done={done} total={comments.length} rate={rate} speed={speed} totals={totals} />
-      </Panel>
-
-      <div
-        onPointerEnter={() => hold('pointer', true)}
-        onPointerLeave={() => hold('pointer', false)}
-        onFocus={() => hold('focus', true)}
-        onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && hold('focus', false)}
-      >
         <Inspector
           comment={shownIdx !== null ? comments[shownIdx] : null}
           index={shownIdx}
-          mode={shownMode}
-          onClear={picked !== null ? () => setPicked(null) : undefined}
+          mode={mode}
+          counting={mode === 'live' && playing}
+          swapKey={swapKey}
+          onPin={shownIdx !== null ? () => setPicked(shownIdx) : undefined}
+          onLive={backToLive}
           onPrev={prevFlagged !== null ? () => setPicked(prevFlagged) : undefined}
           onNext={nextFlagged !== null ? () => setPicked(nextFlagged) : undefined}
         />
-      </div>
+        <Counters done={done} total={comments.length} rate={rate} speed={speed} totals={totals} />
+      </Panel>
     </div>
   )
+}
+
+/** The last flagged comment among the first n processed, or null. `flagged` is sorted. */
+function lastFlaggedBefore(flagged: number[], n: number): number | null {
+  for (let k = flagged.length - 1; k >= 0; k--) if (flagged[k] < n) return flagged[k]
+  return null
 }
 
 /* ---------- Canvas ---------- */
@@ -436,8 +438,8 @@ function Counters({
 }) {
   const routed = (k: Decision) => totals.routed[k][done]
   return (
-    <div className="grid content-start gap-4 text-sm">
-      <div className="grid grid-cols-2 gap-3">
+    <div className="grid content-start gap-4 text-sm lg:col-start-1 lg:row-start-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Processed" value={done.toLocaleString('en-US')} sub={`of ${total.toLocaleString('en-US')}`} />
         <Stat label="Cost so far" value="$0.00" sub="self-hosted" />
         <Stat
@@ -448,42 +450,44 @@ function Counters({
         <Stat label="Questions asked" value={(done * 6).toLocaleString('en-US')} sub="6 per comment" />
       </div>
 
-      <div>
-        <p className="mb-2 text-xs text-ink-3">Routing on P(toxic): approve below 0.10, remove at 0.90+</p>
-        <div className="flex h-2 gap-[2px] overflow-hidden rounded-full bg-sunken" aria-hidden="true">
-          {(['approve', 'human', 'remove'] as const).map((k) => (
-            <div key={k} style={{ width: done ? `${(100 * routed(k)) / done}%` : 0, background: DECISION[k].color }} />
-          ))}
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 [&>*]:min-w-0">
+        <div>
+          <p className="mb-2 text-xs text-ink-3">Routing on P(toxic): approve below 0.10, remove at 0.90+</p>
+          <div className="flex h-2 gap-[2px] overflow-hidden rounded-full bg-sunken" aria-hidden="true">
+            {(['approve', 'human', 'remove'] as const).map((k) => (
+              <div key={k} style={{ width: done ? `${(100 * routed(k)) / done}%` : 0, background: DECISION[k].color }} />
+            ))}
+          </div>
+          <ul className="mt-2 grid gap-1">
+            {(['approve', 'human', 'remove'] as const).map((k) => {
+              const { name, color, Icon } = DECISION[k]
+              return (
+                <li key={k} className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-2 text-ink-2">
+                    <Icon aria-hidden="true" className="h-3.5 w-3.5" style={{ color }} strokeWidth={2.5} />
+                    {name}
+                  </span>
+                  <span className="num">{routed(k).toLocaleString('en-US')}</span>
+                </li>
+              )
+            })}
+          </ul>
         </div>
-        <ul className="mt-2 grid gap-1">
-          {(['approve', 'human', 'remove'] as const).map((k) => {
-            const { name, color, Icon } = DECISION[k]
-            return (
-              <li key={k} className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-2 text-ink-2">
-                  <Icon aria-hidden="true" className="h-3.5 w-3.5" style={{ color }} strokeWidth={2.5} />
-                  {name}
-                </span>
-                <span className="num">{routed(k).toLocaleString('en-US')}</span>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
 
-      <div>
-        <p className="mb-2 text-xs text-ink-3">Flagged at 50%+ (a comment can have several labels)</p>
-        <ul className="grid gap-1">
-          {LABELS.map((l) => (
-            <li key={l} className="flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-2 text-ink-2">
-                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-[2px]" style={{ background: labelColor(l) }} />
-                {LABEL_NAME[l]}
-              </span>
-              <span className="num">{totals.flagged[l][done].toLocaleString('en-US')}</span>
-            </li>
-          ))}
-        </ul>
+        <div>
+          <p className="mb-2 text-xs text-ink-3">Flagged at 50%+ (a comment can have several labels)</p>
+          <ul className="grid grid-cols-2 gap-x-5 gap-y-1">
+            {LABELS.map((l) => (
+              <li key={l} className="flex items-center justify-between gap-2">
+                <span className="inline-flex min-w-0 items-center gap-2 text-ink-2">
+                  <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: labelColor(l) }} />
+                  <span className="truncate">{LABEL_NAME[l]}</span>
+                </span>
+                <span className="num">{totals.flagged[l][done].toLocaleString('en-US')}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   )
@@ -501,110 +505,164 @@ function Stat({ label, value, sub }: { label: string; value: string; sub: string
 
 /* ---------- Inspector ---------- */
 
+type InspectorMode = 'live' | 'hover' | 'pinned'
+
+const MODE_TEXT: Record<InspectorMode, string> = {
+  live: 'Live: newest flagged',
+  hover: 'Hovering',
+  pinned: 'Pinned',
+}
+
 function Inspector({
   comment,
   index,
   mode,
-  onClear,
+  counting,
+  swapKey,
+  onPin,
+  onLive,
   onPrev,
   onNext,
 }: {
   comment: StreamComment | null
   index: number | null
-  mode: string
-  onClear?: () => void
+  mode: InspectorMode
+  /** True while the live view is waiting to move to a newer comment. */
+  counting: boolean
+  swapKey: number
+  onPin?: () => void
+  onLive: () => void
   onPrev?: () => void
   onNext?: () => void
 }) {
-  if (!comment || index === null) {
-    return (
-      <Panel title="Comment inspector">
-        <p className="text-sm text-ink-3">Hover or tap any coloured square to see the comment and all six scores.</p>
-      </Panel>
-    )
-  }
-  const step = 'inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs hover:bg-hover disabled:opacity-40 disabled:hover:bg-transparent'
-  const d = decide(comment.p[0])
-  const { name, color, Icon } = DECISION[d]
+  const btn =
+    'inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs hover:bg-hover disabled:opacity-40 disabled:hover:bg-transparent'
   return (
-    <Panel
-      title="Comment inspector"
-      source={`${mode}: comment ${(index + 1).toLocaleString('en-US')} of 10,000`}
-      actions={
-        <>
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-white" style={{ background: color }}>
-            <Icon aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
-            {name}
-          </span>
-          <span className="inline-flex gap-1">
-            <button type="button" onClick={onPrev} disabled={!onPrev} className={step}>
-              <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
-              Previous flagged
-            </button>
-            <button type="button" onClick={onNext} disabled={!onNext} className={step}>
-              Next flagged
-              <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
-            </button>
-          </span>
-          {onClear && (
-            <button type="button" onClick={onClear} className="rounded-full border border-line px-2.5 py-1 text-xs hover:bg-hover">
-              Clear selection
-            </button>
-          )}
-        </>
-      }
-      bodyClassName="grid [&>*]:min-w-0 gap-5 p-4 sm:p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]"
+    <section
+      aria-label="Comment inspector"
+      className="grid content-start gap-4 border-t border-line pt-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5"
     >
-      <blockquote className="border-l-2 border-line-strong pl-4 text-[15px] leading-relaxed">
-        <Redacted text={comment.text} offensive={isOffensive(comment.y, comment.p)} />
-      </blockquote>
-      <table className="w-full border-collapse text-sm">
-        <caption className="sr-only">Calibrated probability and human label for each question</caption>
-        <thead>
-          <tr className="text-left text-xs text-ink-3">
-            <th scope="col" className="pb-1 font-medium">Label</th>
-            <th scope="col" className="pb-1 font-medium">Calibrated probability</th>
-            <th scope="col" className="pb-1 text-right font-medium">Human label</th>
-          </tr>
-        </thead>
-        <tbody>
-          {LABELS.map((l, j) => {
-            const p = comment.p[j]
-            const yes = comment.y[j] === 1
-            const right = p >= FLAG_AT === yes
-            return (
-              <tr key={l}>
-                <th scope="row" className="py-1 pr-3 text-left font-normal whitespace-nowrap text-ink-2">
-                  {LABEL_NAME[l]}
-                </th>
-                <td className="w-full py-1 pr-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-sunken">
-                      <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${p * 100}%`, background: labelColor(l) }} />
-                    </div>
-                    <span className="num w-10 text-right text-xs">{p.toFixed(3)}</span>
-                  </div>
-                </td>
-                <td className="py-1 text-right whitespace-nowrap">
-                  <span className="text-xs text-ink-2">{yes ? 'Yes' : 'No'}</span>
-                  <span
-                    className={`ml-2 inline-block w-4 text-center font-semibold ${right ? 'text-ok' : 'text-remove'}`}
-                    aria-label={right ? 'model agrees at 50%' : 'model disagrees at 50%'}
-                  >
-                    {right ? '✓' : '✗'}
-                  </span>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-      {mode === 'Latest flagged' && (
-        <p className="text-xs text-ink-3 md:col-span-2">
-          While the replay runs, this shows a newer flagged comment every 4 seconds and holds while your pointer is here.
-          Click any square, use Previous and Next, or press Pause to keep one on screen.
+      <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-semibold tracking-tight">Comment inspector</h3>
+            <p className="text-xs text-ink-3">
+              {index === null
+                ? 'Waiting for the first flagged comment'
+                : `${MODE_TEXT[mode]}, comment ${(index + 1).toLocaleString('en-US')}`}
+            </p>
+          </div>
+          {comment && <DecisionChip pToxic={comment.p[0]} />}
+        </div>
+        {/* Countdown to the next live comment. Hidden for reduced motion, where it would only flash. */}
+        <div className="mt-2 h-0.5 overflow-hidden rounded-full bg-sunken motion-reduce:hidden" aria-hidden="true">
+          {counting && <div key={swapKey} className="inspector-countdown h-full origin-left rounded-full bg-ink-3" />}
+        </div>
+      </div>
+
+      {comment && index !== null ? (
+        <>
+          {/* Revealing or clicking the text keeps this comment on screen. */}
+          <blockquote
+            className="border-l-2 border-line-strong pl-4 text-[15px] leading-relaxed"
+            onClickCapture={mode === 'pinned' ? undefined : onPin}
+          >
+            <Redacted text={comment.text} offensive={isOffensive(comment.y, comment.p)} />
+          </blockquote>
+          <ScoreRows comment={comment} />
+        </>
+      ) : (
+        <p className="text-sm text-ink-3">
+          The newest flagged comment shows up here as the replay runs. Hover or tap any coloured square to see its six
+          scores.
         </p>
       )}
-    </Panel>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {mode === 'pinned' ? (
+          <button type="button" onClick={onLive} className={`${btn} border-line-strong font-medium text-ink`}>
+            <Radio aria-hidden="true" className="h-3.5 w-3.5" />
+            Back to live
+          </button>
+        ) : (
+          <button type="button" onClick={onPin} disabled={!onPin} className={`${btn} border-line-strong font-medium text-ink`}>
+            <Pin aria-hidden="true" className="h-3.5 w-3.5" />
+            Keep this one
+          </button>
+        )}
+        <button type="button" onClick={onPrev} disabled={!onPrev} className={btn} aria-label="Previous flagged comment">
+          <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
+          Previous
+        </button>
+        <button type="button" onClick={onNext} disabled={!onNext} className={btn} aria-label="Next flagged comment">
+          Next
+          <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {mode === 'live' && (
+        <p className="text-xs text-ink-3">
+          Changes every 4 seconds while the replay runs. Hover a square to look at it, or click or tap it to keep it here.
+        </p>
+      )}
+    </section>
+  )
+}
+
+function DecisionChip({ pToxic }: { pToxic: number }) {
+  const { name, color, Icon } = DECISION[decide(pToxic)]
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-white"
+      style={{ background: color }}
+    >
+      <Icon aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.5} />
+      {name}
+    </span>
+  )
+}
+
+function ScoreRows({ comment }: { comment: StreamComment }) {
+  return (
+    <table className="w-full border-collapse text-sm">
+      <caption className="sr-only">Calibrated probability and human label for each question</caption>
+      <thead>
+        <tr className="text-left text-xs text-ink-3">
+          <th scope="col" className="pb-1 font-medium">Label</th>
+          <th scope="col" className="pb-1 font-medium">Probability</th>
+          <th scope="col" className="pb-1 text-right font-medium">Human</th>
+        </tr>
+      </thead>
+      <tbody>
+        {LABELS.map((l, j) => {
+          const p = comment.p[j]
+          const yes = comment.y[j] === 1
+          const right = p >= FLAG_AT === yes
+          return (
+            <tr key={l}>
+              <th scope="row" className="py-1 pr-3 text-left font-normal whitespace-nowrap text-ink-2">
+                {LABEL_NAME[l]}
+              </th>
+              <td className="w-full py-1 pr-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-sunken">
+                    <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${p * 100}%`, background: labelColor(l) }} />
+                  </div>
+                  <span className="num w-10 text-right text-xs">{p.toFixed(3)}</span>
+                </div>
+              </td>
+              <td className="py-1 text-right whitespace-nowrap">
+                <span className="text-xs text-ink-2">{yes ? 'Yes' : 'No'}</span>
+                <span
+                  className={`ml-2 inline-block w-4 text-center font-semibold ${right ? 'text-ok' : 'text-remove'}`}
+                  aria-label={right ? 'model agrees at 50%' : 'model disagrees at 50%'}
+                >
+                  {right ? '✓' : '✗'}
+                </span>
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
