@@ -198,6 +198,10 @@ interface TileCanvasProps {
 }
 
 const FLASH_MS = 350
+/** Magnifier: tiles shown on each side of the hovered one, and their size in px. */
+const LOUPE_R = 4
+const LOUPE_CELL = 14
+const LOUPE_SIZE = (2 * LOUPE_R + 1) * LOUPE_CELL
 
 function TileCanvas({ comments, playing, speed, rate, done, onProgress, selected, onHover, onPick }: TileCanvasProps) {
   const { theme } = usePrefs()
@@ -208,6 +212,10 @@ function TileCanvas({ comments, playing, speed, rate, done, onProgress, selected
   const drawn = useRef(0)
   const position = useRef(0)
   const recent = useRef<{ i: number; at: number }[]>([])
+  const hover = useRef<{ i: number; x: number; y: number } | null>(null)
+  const loupe = useRef<HTMLDivElement>(null)
+  const loupeCanvas = useRef<HTMLCanvasElement>(null)
+  const hoverRing = useRef<HTMLSpanElement>(null)
   const n = comments.length
   const tops = useMemo(() => comments.map((c) => topLabel(c.p)), [comments])
 
@@ -274,6 +282,59 @@ function TileCanvas({ comments, playing, speed, rate, done, onProgress, selected
     recent.current = []
   }, [layout, n, paint, tileRect])
 
+  // Magnified view of the tiles around the pointer. Positioned and drawn directly, without React renders,
+  // because it follows every mouse move.
+  const drawLoupe = useCallback(() => {
+    const wrapEl = loupe.current
+    const cv = loupeCanvas.current
+    const ring = hoverRing.current
+    const h = hover.current
+    if (!wrapEl || !cv || !ring) return
+    if (!h) {
+      wrapEl.style.display = 'none'
+      ring.style.display = 'none'
+      return
+    }
+    const [tx, ty, tw, th] = tileRect(h.i)
+    Object.assign(ring.style, { display: 'block', left: `${tx}px`, top: `${ty}px`, width: `${tw}px`, height: `${th}px` })
+
+    const box = LOUPE_SIZE + 10 // canvas plus padding and border
+    let left = h.x + 18
+    if (left + box > layout.width) left = h.x - box - 18
+    let top = h.y - box - 18
+    if (top < 0) top = h.y + 18
+    Object.assign(wrapEl.style, { display: 'block', left: `${left}px`, top: `${top}px` })
+
+    const dpr = window.devicePixelRatio || 1
+    if (cv.width !== LOUPE_SIZE * dpr) {
+      cv.width = cv.height = LOUPE_SIZE * dpr
+      cv.style.width = cv.style.height = `${LOUPE_SIZE}px`
+    }
+    const ctx = cv.getContext('2d')!
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE)
+    const c = colors.current
+    const { cols } = layout
+    const row0 = Math.floor(h.i / cols)
+    const col0 = h.i % cols
+    for (let dr = -LOUPE_R; dr <= LOUPE_R; dr++) {
+      for (let dc = -LOUPE_R; dc <= LOUPE_R; dc++) {
+        const r = row0 + dr
+        const col = col0 + dc
+        const i = r * cols + col
+        if (r < 0 || col < 0 || col >= cols || i >= n) continue
+        const top = tops[i]
+        ctx.globalAlpha = i < drawn.current ? 1 : 0.55
+        ctx.fillStyle = i >= drawn.current ? c.bg : top ? c.label[LABELS.indexOf(top)] : c.none
+        ctx.fillRect((dc + LOUPE_R) * LOUPE_CELL + 1.5, (dr + LOUPE_R) * LOUPE_CELL + 1.5, LOUPE_CELL - 3, LOUPE_CELL - 3)
+      }
+    }
+    ctx.globalAlpha = 1
+    ctx.strokeStyle = c.flash
+    ctx.lineWidth = 2
+    ctx.strokeRect(LOUPE_R * LOUPE_CELL + 0.5, LOUPE_R * LOUPE_CELL + 0.5, LOUPE_CELL - 1, LOUPE_CELL - 1)
+  }, [layout, n, tops, tileRect])
+
   useEffect(() => {
     // Theme is read from CSS variables inside redraw, so a theme change needs a repaint.
     void theme
@@ -308,6 +369,7 @@ function TileCanvas({ comments, playing, speed, rate, done, onProgress, selected
         recent.current.push({ i, at: now })
       }
       drawn.current = Math.max(drawn.current, target)
+      if (hover.current) drawLoupe()
       while (recent.current.length && now - recent.current[0].at > FLASH_MS) paint(ctx, recent.current.shift()!.i)
       if (now - lastReport > 100 || target >= n) {
         lastReport = now
@@ -321,7 +383,7 @@ function TileCanvas({ comments, playing, speed, rate, done, onProgress, selected
       for (const r of recent.current) paint(ctx, r.i)
       recent.current = []
     }
-  }, [playing, speed, rate, n, layout.width, paint, onProgress])
+  }, [playing, speed, rate, n, layout.width, paint, onProgress, drawLoupe])
 
   const indexAt = (e: PointerEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
@@ -330,6 +392,21 @@ function TileCanvas({ comments, playing, speed, rate, done, onProgress, selected
     if (col < 0 || col >= layout.cols) return null
     const i = row * layout.cols + col
     return i >= 0 && i < drawn.current ? i : null
+  }
+
+  const onMove = (e: PointerEvent<HTMLCanvasElement>) => {
+    if (e.pointerType !== 'mouse') return
+    const i = indexAt(e)
+    const r = e.currentTarget.getBoundingClientRect()
+    hover.current = i === null ? null : { i, x: e.clientX - r.left, y: e.clientY - r.top }
+    drawLoupe()
+    onHover(i)
+  }
+
+  const onLeave = () => {
+    hover.current = null
+    drawLoupe()
+    onHover(null)
   }
 
   const onKey = (e: KeyboardEvent<HTMLCanvasElement>) => {
@@ -352,11 +429,23 @@ function TileCanvas({ comments, playing, speed, rate, done, onProgress, selected
         role="img"
         aria-label={`Grid of ${n.toLocaleString('en-US')} comments, ${done.toLocaleString('en-US')} processed so far. Use arrow keys to inspect processed comments.`}
         className="block cursor-crosshair touch-manipulation rounded-md"
-        onPointerMove={(e) => e.pointerType === 'mouse' && onHover(indexAt(e))}
-        onPointerLeave={() => onHover(null)}
+        onPointerMove={onMove}
+        onPointerLeave={onLeave}
         onPointerDown={(e) => onPick(indexAt(e))}
         onKeyDown={onKey}
       />
+      <span
+        ref={hoverRing}
+        aria-hidden="true"
+        className="pointer-events-none absolute hidden rounded-[2px] ring-2 ring-ink/70"
+      />
+      <div
+        ref={loupe}
+        aria-hidden="true"
+        className="pointer-events-none absolute z-10 hidden rounded-lg border border-line-strong bg-panel p-1 shadow-lg"
+      >
+        <canvas ref={loupeCanvas} className="block" />
+      </div>
       {sel && (
         <span
           aria-hidden="true"
@@ -540,7 +629,7 @@ function Inspector({
   return (
     <section
       aria-label="Comment inspector"
-      className="grid content-start gap-4 border-t border-line pt-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5"
+      className="grid content-start gap-4 border-t border-line pt-5 [&>*]:min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5"
     >
       <div>
         <div className="flex items-start justify-between gap-3">
@@ -564,7 +653,7 @@ function Inspector({
         <>
           {/* Revealing or clicking the text keeps this comment on screen. */}
           <blockquote
-            className="border-l-2 border-line-strong pl-4 text-[15px] leading-relaxed"
+            className="min-h-[4.5rem] border-l-2 border-line-strong pl-4 text-[15px] leading-relaxed"
             onClickCapture={mode === 'pinned' ? undefined : onPin}
           >
             <Redacted text={comment.text} offensive={isOffensive(comment.y, comment.p)} />
